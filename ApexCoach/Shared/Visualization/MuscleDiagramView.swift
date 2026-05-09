@@ -1,0 +1,164 @@
+import SwiftUI
+
+enum MuscleDiagramSide {
+    case front
+    case back
+}
+
+struct MuscleDiagramView: View {
+    var primaryMuscles: [MuscleGroup]
+    var secondaryMuscles: [MuscleGroup]
+    var side: MuscleDiagramSide
+
+    private var primary: Set<MuscleGroup> { Set(primaryMuscles) }
+    private var secondary: Set<MuscleGroup> { Set(secondaryMuscles) }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.08), Color.white.opacity(0.025)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                VStack(spacing: height * 0.025) {
+                    head(width: width)
+                    torso(width: width, height: height)
+                    legs(width: width, height: height)
+                }
+                .padding(.vertical, height * 0.06)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(CoachTheme.stroke, lineWidth: 1)
+            )
+        }
+        .aspectRatio(0.72, contentMode: .fit)
+    }
+
+    private func head(width: CGFloat) -> some View {
+        Circle()
+            .fill(Color.white.opacity(0.10))
+            .frame(width: width * 0.18, height: width * 0.18)
+            .overlay(Circle().stroke(Color.white.opacity(0.10), lineWidth: 1))
+    }
+
+    private func torso(width: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: width * 0.10, style: .continuous)
+                .fill(color(for: side == .front ? .chest : .back))
+                .frame(width: width * 0.32, height: height * 0.27)
+                .offset(y: height * 0.015)
+
+            RoundedRectangle(cornerRadius: width * 0.05, style: .continuous)
+                .fill(color(for: .core))
+                .frame(width: width * 0.22, height: height * 0.20)
+                .offset(y: height * 0.105)
+
+            HStack(spacing: width * 0.33) {
+                limb(.shoulders, width: width * 0.13, height: height * 0.105)
+                    .rotationEffect(.degrees(16))
+                limb(.shoulders, width: width * 0.13, height: height * 0.105)
+                    .rotationEffect(.degrees(-16))
+            }
+            .offset(y: -height * 0.065)
+
+            HStack(spacing: width * 0.45) {
+                arm(width: width, height: height, isLeading: true)
+                arm(width: width, height: height, isLeading: false)
+            }
+            .offset(y: height * 0.07)
+        }
+        .frame(width: width, height: height * 0.40)
+    }
+
+    private func arm(width: CGFloat, height: CGFloat, isLeading: Bool) -> some View {
+        VStack(spacing: height * 0.012) {
+            limb(side == .front ? .biceps : .triceps, width: width * 0.075, height: height * 0.125)
+            limb(.triceps, width: width * 0.062, height: height * 0.12)
+        }
+        .rotationEffect(.degrees(isLeading ? 8 : -8))
+    }
+
+    private func legs(width: CGFloat, height: CGFloat) -> some View {
+        VStack(spacing: height * 0.012) {
+            if side == .back {
+                RoundedRectangle(cornerRadius: width * 0.05, style: .continuous)
+                    .fill(color(for: .glutes))
+                    .frame(width: width * 0.28, height: height * 0.075)
+            }
+
+            HStack(spacing: width * 0.06) {
+                leg(width: width, height: height)
+                leg(width: width, height: height)
+            }
+        }
+        .frame(width: width, height: height * 0.34)
+    }
+
+    private func leg(width: CGFloat, height: CGFloat) -> some View {
+        VStack(spacing: height * 0.015) {
+            limb(side == .front ? .quads : .hamstrings, width: width * 0.12, height: height * 0.17)
+            limb(.calves, width: width * 0.095, height: height * 0.13)
+        }
+    }
+
+    private func limb(_ muscle: MuscleGroup, width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous)
+            .fill(color(for: muscle))
+            .frame(width: width, height: height)
+            .overlay(
+                RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+    }
+
+    private func color(for muscle: MuscleGroup) -> Color {
+        if primary.contains(muscle) || primary.contains(.fullBody) {
+            return CoachTheme.accentPurple
+        }
+        if secondary.contains(muscle) || secondary.contains(.fullBody) {
+            return CoachTheme.accentBlue.opacity(0.72)
+        }
+        if muscle == .glutes && (primary.contains(.glutes) || secondary.contains(.glutes)) {
+            return primary.contains(.glutes) ? CoachTheme.accentPurple : CoachTheme.accentBlue.opacity(0.72)
+        }
+        return Color.white.opacity(0.13)
+    }
+}
+
+struct MuscleMiniGlyph: View {
+    var primaryMuscles: [MuscleGroup]
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(CoachTheme.surfaceStrong)
+            Image(systemName: iconName)
+                .font(.headline)
+                .foregroundStyle(CoachTheme.accentMint)
+        }
+        .overlay(Circle().stroke(CoachTheme.stroke, lineWidth: 1))
+    }
+
+    private var iconName: String {
+        let muscles = Set(primaryMuscles)
+        if muscles.contains(.quads) || muscles.contains(.hamstrings) || muscles.contains(.glutes) {
+            return "figure.strengthtraining.traditional"
+        }
+        if muscles.contains(.core) {
+            return "figure.core.training"
+        }
+        if muscles.contains(.back) {
+            return "figure.pullup"
+        }
+        return "dumbbell.fill"
+    }
+}
