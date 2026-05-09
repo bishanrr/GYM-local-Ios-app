@@ -87,7 +87,11 @@ struct ProgressViewScreen: View {
                     }
 
                     HStack(spacing: 16) {
-                        HeroMuscleFigure(primaryMuscles: focusMuscles.map(\.0), secondaryMuscles: [], pose: .standing)
+                        MuscleDiagramView(
+                            primaryMuscles: focusMuscles.map(\.0),
+                            secondaryMuscles: [],
+                            viewMode: .front
+                        )
                             .frame(width: 100, height: 190)
 
                         VStack(spacing: 12) {

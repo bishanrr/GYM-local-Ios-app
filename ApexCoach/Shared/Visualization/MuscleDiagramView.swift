@@ -1,17 +1,41 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
-enum MuscleDiagramSide {
+enum MuscleDiagramViewMode {
     case front
     case back
+
+    var assetName: String {
+        switch self {
+        case .front:
+            return "body_front"
+        case .back:
+            return "body_back"
+        }
+    }
 }
 
 struct MuscleDiagramView: View {
     var primaryMuscles: [MuscleGroup]
     var secondaryMuscles: [MuscleGroup]
-    var side: MuscleDiagramSide
+    var viewMode: MuscleDiagramViewMode
 
     private var primary: Set<MuscleGroup> { Set(primaryMuscles) }
     private var secondary: Set<MuscleGroup> { Set(secondaryMuscles) }
+
+    init(
+        primaryMuscles: [MuscleGroup],
+        secondaryMuscles: [MuscleGroup],
+        viewMode: MuscleDiagramViewMode
+    ) {
+        self.primaryMuscles = primaryMuscles
+        self.secondaryMuscles = secondaryMuscles
+        self.viewMode = viewMode
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -28,12 +52,23 @@ struct MuscleDiagramView: View {
                         )
                     )
 
-                VStack(spacing: height * 0.025) {
-                    head(width: width)
-                    torso(width: width, height: height)
-                    legs(width: width, height: height)
+                if hasLocalBodyAsset {
+                    Image(viewMode.assetName)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(height * 0.045)
+                        .frame(width: width, height: height)
+                        .opacity(0.92)
+                } else {
+                    fallbackBody(width: width, height: height)
                 }
-                .padding(.vertical, height * 0.06)
+
+                MuscleOverlayRegions(
+                    primaryMuscles: primary,
+                    secondaryMuscles: secondary,
+                    viewMode: viewMode
+                )
+                .padding(height * 0.045)
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -41,6 +76,25 @@ struct MuscleDiagramView: View {
             )
         }
         .aspectRatio(0.72, contentMode: .fit)
+    }
+
+    private var hasLocalBodyAsset: Bool {
+        #if canImport(UIKit)
+        return UIImage(named: viewMode.assetName) != nil
+        #elseif canImport(AppKit)
+        return NSImage(named: viewMode.assetName) != nil
+        #else
+        return true
+        #endif
+    }
+
+    private func fallbackBody(width: CGFloat, height: CGFloat) -> some View {
+        VStack(spacing: height * 0.025) {
+            head(width: width)
+            torso(width: width, height: height)
+            legs(width: width, height: height)
+        }
+        .padding(.vertical, height * 0.06)
     }
 
     private func head(width: CGFloat) -> some View {
@@ -63,7 +117,7 @@ struct MuscleDiagramView: View {
 
     private func torso(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
-            if side == .front {
+            if viewMode == .front {
                 VStack(spacing: height * 0.012) {
                     HStack(spacing: width * 0.018) {
                         musclePlate(.chest, width: width * 0.16, height: height * 0.125, radius: width * 0.045)
@@ -113,7 +167,7 @@ struct MuscleDiagramView: View {
 
     private func arm(width: CGFloat, height: CGFloat, isLeading: Bool) -> some View {
         VStack(spacing: height * 0.012) {
-            limb(side == .front ? .biceps : .triceps, width: width * 0.075, height: height * 0.125)
+            limb(viewMode == .front ? .biceps : .triceps, width: width * 0.075, height: height * 0.125)
             limb(.triceps, width: width * 0.062, height: height * 0.12)
         }
         .rotationEffect(.degrees(isLeading ? 8 : -8))
@@ -121,7 +175,7 @@ struct MuscleDiagramView: View {
 
     private func legs(width: CGFloat, height: CGFloat) -> some View {
         VStack(spacing: height * 0.012) {
-            if side == .back {
+            if viewMode == .back {
                 RoundedRectangle(cornerRadius: width * 0.05, style: .continuous)
                     .fill(color(for: .glutes))
                     .frame(width: width * 0.28, height: height * 0.075)
@@ -137,7 +191,7 @@ struct MuscleDiagramView: View {
 
     private func leg(width: CGFloat, height: CGFloat) -> some View {
         VStack(spacing: height * 0.015) {
-            limb(side == .front ? .quads : .hamstrings, width: width * 0.12, height: height * 0.17)
+            limb(viewMode == .front ? .quads : .hamstrings, width: width * 0.12, height: height * 0.17)
             limb(.calves, width: width * 0.095, height: height * 0.13)
         }
     }
@@ -195,6 +249,103 @@ struct MuscleDiagramView: View {
 
     private func isActivated(_ muscle: MuscleGroup) -> Bool {
         primary.contains(muscle) || secondary.contains(muscle) || primary.contains(.fullBody) || secondary.contains(.fullBody)
+    }
+}
+
+private struct MuscleOverlayRegions: View {
+    var primaryMuscles: Set<MuscleGroup>
+    var secondaryMuscles: Set<MuscleGroup>
+    var viewMode: MuscleDiagramViewMode
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+
+            ZStack {
+                if viewMode == .front {
+                    frontRegions(width: width, height: height)
+                } else {
+                    backRegions(width: width, height: height)
+                }
+            }
+            .frame(width: width, height: height)
+        }
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func frontRegions(width: CGFloat, height: CGFloat) -> some View {
+        pairedRegion(.chest, x: 0.5, y: 0.255, width: 0.205, height: 0.115, spacing: 0.106, radius: 0.035, canvas: CGSize(width: width, height: height))
+        pairedRegion(.shoulders, x: 0.5, y: 0.232, width: 0.135, height: 0.070, spacing: 0.328, radius: 0.032, canvas: CGSize(width: width, height: height), rotation: 12)
+        pairedRegion(.biceps, x: 0.5, y: 0.380, width: 0.098, height: 0.220, spacing: 0.500, radius: 0.040, canvas: CGSize(width: width, height: height), rotation: 8)
+        pairedRegion(.triceps, x: 0.5, y: 0.380, width: 0.082, height: 0.220, spacing: 0.515, radius: 0.035, canvas: CGSize(width: width, height: height), rotation: 8)
+        pairedRegion(.core, x: 0.5, y: 0.410, width: 0.118, height: 0.260, spacing: 0.070, radius: 0.018, canvas: CGSize(width: width, height: height))
+        pairedRegion(.quads, x: 0.5, y: 0.684, width: 0.126, height: 0.225, spacing: 0.184, radius: 0.045, canvas: CGSize(width: width, height: height))
+        pairedRegion(.calves, x: 0.5, y: 0.858, width: 0.092, height: 0.160, spacing: 0.184, radius: 0.040, canvas: CGSize(width: width, height: height))
+    }
+
+    @ViewBuilder
+    private func backRegions(width: CGFloat, height: CGFloat) -> some View {
+        pairedRegion(.back, x: 0.5, y: 0.340, width: 0.170, height: 0.270, spacing: 0.154, radius: 0.052, canvas: CGSize(width: width, height: height))
+        pairedRegion(.shoulders, x: 0.5, y: 0.232, width: 0.135, height: 0.070, spacing: 0.328, radius: 0.032, canvas: CGSize(width: width, height: height), rotation: 12)
+        pairedRegion(.triceps, x: 0.5, y: 0.395, width: 0.095, height: 0.235, spacing: 0.510, radius: 0.038, canvas: CGSize(width: width, height: height), rotation: 8)
+        pairedRegion(.biceps, x: 0.5, y: 0.395, width: 0.078, height: 0.215, spacing: 0.520, radius: 0.034, canvas: CGSize(width: width, height: height), rotation: 8)
+        pairedRegion(.glutes, x: 0.5, y: 0.565, width: 0.145, height: 0.112, spacing: 0.146, radius: 0.040, canvas: CGSize(width: width, height: height))
+        pairedRegion(.hamstrings, x: 0.5, y: 0.708, width: 0.128, height: 0.225, spacing: 0.184, radius: 0.045, canvas: CGSize(width: width, height: height))
+        pairedRegion(.calves, x: 0.5, y: 0.858, width: 0.092, height: 0.160, spacing: 0.184, radius: 0.040, canvas: CGSize(width: width, height: height))
+    }
+
+    @ViewBuilder
+    private func pairedRegion(
+        _ muscle: MuscleGroup,
+        x: CGFloat,
+        y: CGFloat,
+        width regionWidth: CGFloat,
+        height regionHeight: CGFloat,
+        spacing: CGFloat,
+        radius: CGFloat,
+        canvas: CGSize,
+        rotation: Double = 0
+    ) -> some View {
+        if let color = highlightColor(for: muscle) {
+            muscleShape(color: color, radius: canvas.width * radius)
+                .frame(width: canvas.width * regionWidth, height: canvas.height * regionHeight)
+                .rotationEffect(.degrees(-rotation))
+                .position(x: canvas.width * (x - spacing / 2), y: canvas.height * y)
+
+            muscleShape(color: color, radius: canvas.width * radius)
+                .frame(width: canvas.width * regionWidth, height: canvas.height * regionHeight)
+                .rotationEffect(.degrees(rotation))
+                .position(x: canvas.width * (x + spacing / 2), y: canvas.height * y)
+        }
+    }
+
+    private func muscleShape(color: Color, radius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [color.opacity(0.95), color.opacity(0.68)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: color.opacity(0.45), radius: 12)
+            .blendMode(.plusLighter)
+    }
+
+    private func highlightColor(for muscle: MuscleGroup) -> Color? {
+        if primaryMuscles.contains(.fullBody) || primaryMuscles.contains(muscle) {
+            return Color(red: 1.0, green: 0.23, blue: 0.12)
+        }
+        if secondaryMuscles.contains(.fullBody) || secondaryMuscles.contains(muscle) {
+            return Color(red: 1.0, green: 0.55, blue: 0.22).opacity(0.72)
+        }
+        return nil
     }
 }
 

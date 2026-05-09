@@ -55,12 +55,12 @@ struct ExerciseDetailView: View {
                 MuscleDiagramView(
                     primaryMuscles: exercise.primaryMuscles,
                     secondaryMuscles: exercise.secondaryMuscles,
-                    side: .front
+                    viewMode: .front
                 )
                 MuscleDiagramView(
                     primaryMuscles: exercise.primaryMuscles,
                     secondaryMuscles: exercise.secondaryMuscles,
-                    side: .back
+                    viewMode: .back
                 )
             }
             .frame(maxHeight: 310)

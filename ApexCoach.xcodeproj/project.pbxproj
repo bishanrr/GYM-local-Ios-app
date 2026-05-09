@@ -30,6 +30,8 @@
 		B10000000000000000000015 /* FitnessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* FitnessModels.swift */; };
 		B10000000000000000000016 /* ExerciseDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* ExerciseDatabase.swift */; };
 		B10000000000000000000017 /* CoachTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* CoachTheme.swift */; };
+		B10000000000000000000018 /* body_front.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* body_front.png */; };
+		B10000000000000000000019 /* body_back.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* body_back.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +58,8 @@
 		A10000000000000000000015 /* FitnessModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models/FitnessModels.swift; sourceTree = "<group>"; };
 		A10000000000000000000016 /* ExerciseDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/SampleData/ExerciseDatabase.swift; sourceTree = "<group>"; };
 		A10000000000000000000017 /* CoachTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem/CoachTheme.swift; sourceTree = "<group>"; };
+		A10000000000000000000018 /* body_front.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Assets/body_front.png; sourceTree = "<group>"; };
+		A10000000000000000000019 /* body_back.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Assets/body_back.png; sourceTree = "<group>"; };
 		A20000000000000000000001 /* ApexCoach.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ApexCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -101,6 +105,8 @@
 				A10000000000000000000010 /* HapticEngine.swift */,
 				A10000000000000000000016 /* ExerciseDatabase.swift */,
 				A10000000000000000000017 /* CoachTheme.swift */,
+				A10000000000000000000018 /* body_front.png */,
+				A10000000000000000000019 /* body_back.png */,
 				A10000000000000000000002 /* PremiumComponents.swift */,
 				A10000000000000000000003 /* MuscleDiagramView.swift */,
 				A10000000000000000000004 /* OnboardingViewModel.swift */,
@@ -174,6 +180,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000018 /* body_front.png in Resources */,
+				B10000000000000000000019 /* body_back.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

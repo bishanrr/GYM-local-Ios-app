@@ -107,8 +107,8 @@ struct WorkoutPlanView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     SectionHeader(title: "Muscle Focus", subtitle: workout.muscleFocus.map(\.rawValue).joined(separator: " • "))
                     HStack(spacing: 12) {
-                        MuscleDiagramView(primaryMuscles: workout.muscleFocus, secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles), side: .front)
-                        MuscleDiagramView(primaryMuscles: workout.muscleFocus, secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles), side: .back)
+                        MuscleDiagramView(primaryMuscles: workout.muscleFocus, secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles), viewMode: .front)
+                        MuscleDiagramView(primaryMuscles: workout.muscleFocus, secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles), viewMode: .back)
                     }
                     .frame(maxHeight: 300)
                 }

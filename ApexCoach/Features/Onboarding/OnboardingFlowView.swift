@@ -223,7 +223,7 @@ struct OnboardingFlowView: View {
                 MuscleDiagramView(
                     primaryMuscles: Array(viewModel.targetMuscles),
                     secondaryMuscles: [],
-                    side: .front
+                    viewMode: .front
                 )
                 .frame(maxHeight: 360)
             }
