@@ -51,7 +51,7 @@ struct ExerciseDetailView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: 18) {
-            ExerciseRemoteImagePanel(exercise: exercise)
+            ExerciseGeneratedImagePanel(exercise: exercise)
 
             HStack(spacing: 16) {
                 MuscleDiagramView(
@@ -192,7 +192,7 @@ struct ExerciseDetailView: View {
     }
 }
 
-private struct ExerciseRemoteImagePanel: View {
+private struct ExerciseGeneratedImagePanel: View {
     var exercise: Exercise
     @StateObject private var viewModel = ExerciseImageViewModel()
 
@@ -220,7 +220,7 @@ private struct ExerciseRemoteImagePanel: View {
                 )
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(viewModel.remoteExercise?.name ?? exercise.name)
+                    Text(exercise.name)
                         .font(.headline.weight(.bold))
                         .foregroundStyle(CoachTheme.primaryText)
                         .lineLimit(1)
@@ -238,27 +238,6 @@ private struct ExerciseRemoteImagePanel: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(CoachTheme.stroke, lineWidth: 1)
             )
-
-            if let remoteExercise = viewModel.remoteExercise, !remoteExercise.description.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("wger Instructions")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(CoachTheme.accentBlue)
-                    Text(remoteExercise.description)
-                        .font(.caption)
-                        .foregroundStyle(CoachTheme.secondaryText)
-                        .lineLimit(5)
-                    if !remoteExercise.equipment.isEmpty {
-                        Text("Equipment: \(remoteExercise.equipment.prefix(3).joined(separator: ", "))")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(CoachTheme.tertiaryText)
-                            .lineLimit(1)
-                    }
-                }
-                .padding(12)
-                .background(CoachTheme.surface.opacity(0.72))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
         }
         .task(id: exercise.id) {
             await viewModel.load(for: exercise)
@@ -266,19 +245,7 @@ private struct ExerciseRemoteImagePanel: View {
     }
 
     private var panelSubtitle: String {
-        if let remote = viewModel.remoteExercise {
-            let muscles = (remote.primaryMuscles + remote.secondaryMuscles).prefix(3).joined(separator: " • ")
-            if !muscles.isEmpty {
-                return muscles
-            }
-            return remote.equipment.prefix(2).joined(separator: " • ")
-        }
-
-        if viewModel.isLoading {
-            return "Searching wger image cache"
-        }
-
-        return "No image found"
+        viewModel.statusMessage
     }
 }
 
@@ -298,7 +265,7 @@ private struct NoExerciseImageFoundView: View {
                 Text("No image found")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(CoachTheme.primaryText)
-                Text("wger does not have an image for this exercise yet.")
+                Text("No generated image is saved for this exercise yet.")
                     .font(.caption)
                     .foregroundStyle(CoachTheme.secondaryText)
                     .multilineTextAlignment(.center)

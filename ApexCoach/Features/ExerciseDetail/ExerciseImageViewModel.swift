@@ -8,18 +8,18 @@ import AppKit
 @MainActor
 final class ExerciseImageViewModel: ObservableObject {
     @Published private(set) var image: UIImage?
-    @Published private(set) var remoteExercise: WgerExercise?
     @Published private(set) var isLoading = false
     @Published private(set) var didFail = false
+    @Published private(set) var statusMessage = "Generated exercise image"
 
-    private let apiService: WgerExerciseAPIService
+    private let generationService: OpenAIExerciseImageGenerationService
     private let cacheService: ExerciseImageCacheService
 
     init(
-        apiService: WgerExerciseAPIService = WgerExerciseAPIService(),
+        generationService: OpenAIExerciseImageGenerationService = OpenAIExerciseImageGenerationService(),
         cacheService: ExerciseImageCacheService = ExerciseImageCacheService()
     ) {
-        self.apiService = apiService
+        self.generationService = generationService
         self.cacheService = cacheService
     }
 
@@ -31,37 +31,25 @@ final class ExerciseImageViewModel: ObservableObject {
             image = cachedImage
             isLoading = false
             didFail = false
+            statusMessage = "Cached generated image"
             return
         }
 
         isLoading = true
         didFail = false
+        statusMessage = "Generating image with ChatGPT"
 
         do {
-            guard let wgerExercise = try await apiService.searchExerciseByName(name: exercise.name) else {
-                markFailed()
-                return
-            }
-
-            remoteExercise = wgerExercise
-
-            guard let imageURL = try await apiService.fetchExerciseImages(exerciseId: wgerExercise.id).first else {
-                markFailed()
-                return
-            }
-
-            let (data, response) = try await URLSession.shared.data(from: imageURL)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200..<300).contains(httpResponse.statusCode),
-                  let downloadedImage = UIImage(data: data) else {
+            let data = try await generationService.generateImage(for: exercise)
+            guard let generatedImage = UIImage(data: data) else {
                 markFailed()
                 return
             }
 
             cacheService.saveImage(imageData: data, exerciseId: cacheKey)
-            cacheService.saveImage(imageData: data, exerciseId: "\(wgerExercise.id)")
-            image = downloadedImage
+            image = generatedImage
             isLoading = false
+            statusMessage = "Generated image saved"
         } catch {
             markFailed()
         }
@@ -71,5 +59,6 @@ final class ExerciseImageViewModel: ObservableObject {
         image = nil
         isLoading = false
         didFail = true
+        statusMessage = OpenAIAPIKeyProvider.apiKey == nil ? "Add OPENAI_API_KEY to generate images" : "Image generation failed"
     }
 }

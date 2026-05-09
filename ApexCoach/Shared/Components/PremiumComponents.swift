@@ -183,7 +183,7 @@ struct ExerciseSummaryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            WorkoutThumbnail(primaryMuscles: exercise.primaryMuscles, secondaryMuscles: exercise.secondaryMuscles, phase: exercise.phase)
+            ExerciseArtworkView(exercise: exercise)
                 .frame(width: 58, height: 58)
 
             VStack(alignment: .leading, spacing: 4) {

@@ -122,7 +122,7 @@ private struct ExerciseListCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            WorkoutThumbnail(primaryMuscles: exercise.primaryMuscles, secondaryMuscles: exercise.secondaryMuscles, phase: exercise.phase)
+            ExerciseArtworkView(exercise: exercise)
                 .frame(width: 64, height: 64)
 
             VStack(alignment: .leading, spacing: 6) {

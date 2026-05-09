@@ -127,14 +127,10 @@ struct ActiveWorkoutView: View {
                         .stroke(CoachTheme.stroke, lineWidth: 1)
                 )
 
-            HeroMuscleFigure(
-                primaryMuscles: exercise.primaryMuscles,
-                secondaryMuscles: exercise.secondaryMuscles,
-                pose: exercise.primaryMuscles.contains(.chest) ? .bench : .standing
-            )
-            .frame(height: 230)
-            .padding(.horizontal, 26)
-            .padding(.top, 18)
+            ExerciseArtworkView(exercise: exercise, presentation: .hero)
+                .frame(height: 230)
+                .padding(.horizontal, 26)
+                .padding(.top, 18)
         }
         .frame(height: 250)
     }
@@ -438,7 +434,7 @@ private struct ExerciseListLikeRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            WorkoutThumbnail(primaryMuscles: exercise.primaryMuscles, secondaryMuscles: exercise.secondaryMuscles, phase: exercise.phase)
+            ExerciseArtworkView(exercise: exercise)
                 .frame(width: 58, height: 58)
             VStack(alignment: .leading, spacing: 5) {
                 Text(exercise.name)
