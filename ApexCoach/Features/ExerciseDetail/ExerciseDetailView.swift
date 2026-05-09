@@ -208,11 +208,7 @@ private struct ExerciseRemoteImagePanel: View {
                     ExerciseImageShimmer()
                         .frame(height: 260)
                 } else {
-                    MuscleDiagramView(
-                        primaryMuscles: exercise.primaryMuscles,
-                        secondaryMuscles: exercise.secondaryMuscles,
-                        viewMode: .front
-                    )
+                    NoExerciseImageFoundView()
                     .frame(maxWidth: .infinity)
                     .frame(height: 260)
                 }
@@ -282,7 +278,33 @@ private struct ExerciseRemoteImagePanel: View {
             return "Searching wger image cache"
         }
 
-        return "Local muscle diagram fallback"
+        return "No image found"
+    }
+}
+
+private struct NoExerciseImageFoundView: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [CoachTheme.surfaceStrong, CoachTheme.surface, Color.black.opacity(0.22)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            VStack(spacing: 14) {
+                Image(systemName: "photo.badge.exclamationmark")
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(CoachTheme.tertiaryText)
+                Text("No image found")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                Text("wger does not have an image for this exercise yet.")
+                    .font(.caption)
+                    .foregroundStyle(CoachTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
+        }
     }
 }
 
