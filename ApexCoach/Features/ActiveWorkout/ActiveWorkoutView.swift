@@ -52,6 +52,7 @@ struct ActiveWorkoutView: View {
                 ScrollView {
                     VStack(spacing: 18) {
                         hero(for: exercise)
+                        activeTimerCard(for: exercise)
 
                         VStack(spacing: 12) {
                             ValueStepperCard(title: "Reps", value: $repsValue, range: 0...50)
@@ -112,7 +113,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func hero(for exercise: Exercise) -> some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
                     LinearGradient(
@@ -134,23 +135,49 @@ struct ActiveWorkoutView: View {
             .frame(height: 230)
             .padding(.horizontal, 26)
             .padding(.top, 18)
-
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(viewModel.mode == .paused ? CoachTheme.accentGold : CoachTheme.accentBlue)
-                    .frame(width: 8, height: 8)
-                Text(viewModel.mode == .paused ? "Paused" : viewModel.remainingText)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(CoachTheme.primaryText)
-                    .monospacedDigit()
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .background(Color.black.opacity(0.38))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(12)
         }
         .frame(height: 250)
+    }
+
+    private func activeTimerCard(for exercise: Exercise) -> some View {
+        HStack(spacing: 18) {
+            ZStack {
+                ProgressRing(progress: viewModel.phaseProgress, lineWidth: 13, gradient: CoachTheme.accentGradient)
+                    .frame(width: 152, height: 152)
+                VStack(spacing: 5) {
+                    Text(viewModel.mode == .paused ? "Paused" : exercise.phase.rawValue)
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(CoachTheme.secondaryText)
+                    Text(viewModel.remainingText)
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                        .foregroundStyle(CoachTheme.primaryText)
+                        .monospacedDigit()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(exercise.phase == .main ? "Set Timer" : "\(exercise.phase.rawValue) Timer")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                Text("Auto advances into rest, the next set, or the next exercise.")
+                    .font(.subheadline)
+                    .foregroundStyle(CoachTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Live \(viewModel.elapsedText)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(CoachTheme.accentBlue)
+                    .monospacedDigit()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(CoachTheme.surface.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(CoachTheme.stroke, lineWidth: 1)
+        )
     }
 
     private func restTimerRow(for exercise: Exercise) -> some View {
@@ -372,20 +399,37 @@ private struct RestScreen: View {
     }
 
     private var timer: some View {
-        ZStack {
-            ProgressRing(progress: viewModel.phaseProgress, lineWidth: 18, gradient: CoachTheme.accentGradient)
-                .frame(width: 250, height: 250)
-            VStack(spacing: 8) {
-                Text(viewModel.remainingText)
-                    .font(.system(size: 60, weight: .bold, design: .rounded))
-                    .foregroundStyle(CoachTheme.primaryText)
-                    .monospacedDigit()
-                Text("/ \(viewModel.phaseDurationSeconds.clockString)")
-                    .font(.headline.weight(.medium))
-                    .foregroundStyle(CoachTheme.secondaryText)
-                    .monospacedDigit()
+        GeometryReader { proxy in
+            let size = min(proxy.size.width - 24, 336)
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [CoachTheme.accentBlue.opacity(0.13), Color.clear],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: size * 0.62
+                        )
+                    )
+                    .frame(width: size + 34, height: size + 34)
+
+                ProgressRing(progress: viewModel.phaseProgress, lineWidth: 24, gradient: CoachTheme.accentGradient)
+                    .frame(width: size, height: size)
+                VStack(spacing: 10) {
+                    Text(viewModel.remainingText)
+                        .font(.system(size: 78, weight: .bold, design: .rounded))
+                        .foregroundStyle(CoachTheme.primaryText)
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.76)
+                    Text("/ \(viewModel.phaseDurationSeconds.clockString)")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                        .monospacedDigit()
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(height: 360)
     }
 }
 

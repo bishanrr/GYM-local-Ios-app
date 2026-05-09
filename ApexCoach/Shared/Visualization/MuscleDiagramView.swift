@@ -44,23 +44,55 @@ struct MuscleDiagramView: View {
     }
 
     private func head(width: CGFloat) -> some View {
-        Circle()
-            .fill(Color.white.opacity(0.20))
-            .frame(width: width * 0.18, height: width * 0.18)
-            .overlay(Circle().stroke(Color.white.opacity(0.16), lineWidth: 1))
+        VStack(spacing: 2) {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.36), Color.white.opacity(0.16)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: width * 0.18, height: width * 0.18)
+                .overlay(Circle().stroke(Color.white.opacity(0.16), lineWidth: 1))
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.white.opacity(0.16))
+                .frame(width: width * 0.08, height: width * 0.05)
+        }
     }
 
     private func torso(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: width * 0.10, style: .continuous)
-                .fill(color(for: side == .front ? .chest : .back))
-                .frame(width: width * 0.32, height: height * 0.27)
-                .offset(y: height * 0.015)
+            if side == .front {
+                VStack(spacing: height * 0.012) {
+                    HStack(spacing: width * 0.018) {
+                        musclePlate(.chest, width: width * 0.16, height: height * 0.125, radius: width * 0.045)
+                        musclePlate(.chest, width: width * 0.16, height: height * 0.125, radius: width * 0.045)
+                    }
 
-            RoundedRectangle(cornerRadius: width * 0.05, style: .continuous)
-                .fill(color(for: .core))
-                .frame(width: width * 0.22, height: height * 0.20)
-                .offset(y: height * 0.105)
+                    VStack(spacing: height * 0.006) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            HStack(spacing: width * 0.012) {
+                                musclePlate(.core, width: width * 0.09, height: height * 0.033, radius: width * 0.012)
+                                musclePlate(.core, width: width * 0.09, height: height * 0.033, radius: width * 0.012)
+                            }
+                        }
+                    }
+                }
+                .offset(y: height * 0.05)
+            } else {
+                VStack(spacing: height * 0.010) {
+                    HStack(spacing: width * 0.018) {
+                        musclePlate(.back, width: width * 0.15, height: height * 0.22, radius: width * 0.05)
+                        musclePlate(.back, width: width * 0.15, height: height * 0.22, radius: width * 0.05)
+                    }
+                    RoundedRectangle(cornerRadius: width * 0.015)
+                        .fill(Color.white.opacity(0.22))
+                        .frame(width: width * 0.035, height: height * 0.19)
+                        .offset(y: -height * 0.20)
+                }
+                .offset(y: height * 0.05)
+            }
 
             HStack(spacing: width * 0.33) {
                 limb(.shoulders, width: width * 0.13, height: height * 0.105)
@@ -115,9 +147,37 @@ struct MuscleDiagramView: View {
             .fill(color(for: muscle))
             .frame(width: width, height: height)
             .overlay(
-                RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                LinearGradient(
+                    colors: [Color.white.opacity(0.28), Color.clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous))
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous)
+                    .stroke(Color.white.opacity(isActivated(muscle) ? 0.24 : 0.08), lineWidth: 1)
+            )
+            .shadow(color: color(for: muscle).opacity(isActivated(muscle) ? 0.36 : 0.04), radius: isActivated(muscle) ? 10 : 2)
+    }
+
+    private func musclePlate(_ muscle: MuscleGroup, width: CGFloat, height: CGFloat, radius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(color(for: muscle))
+            .frame(width: width, height: height)
+            .overlay(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.30), Color.clear, Color.black.opacity(0.18)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Color.white.opacity(isActivated(muscle) ? 0.22 : 0.08), lineWidth: 1)
+            )
+            .shadow(color: color(for: muscle).opacity(isActivated(muscle) ? 0.28 : 0.03), radius: isActivated(muscle) ? 9 : 2)
     }
 
     private func color(for muscle: MuscleGroup) -> Color {
@@ -131,6 +191,10 @@ struct MuscleDiagramView: View {
             return primary.contains(.glutes) ? CoachTheme.muscle : CoachTheme.muscle.opacity(0.58)
         }
         return Color.white.opacity(0.18)
+    }
+
+    private func isActivated(_ muscle: MuscleGroup) -> Bool {
+        primary.contains(muscle) || secondary.contains(muscle) || primary.contains(.fullBody) || secondary.contains(.fullBody)
     }
 }
 
@@ -152,15 +216,15 @@ struct WorkoutThumbnail: View {
 
             if phase == .warmUp {
                 Image(systemName: "figure.cooldown")
-                    .font(.title2.weight(.semibold))
+                    .font(.title.weight(.semibold))
                     .foregroundStyle(CoachTheme.accentGold)
             } else if phase == .stretching {
                 Image(systemName: "figure.flexibility")
-                    .font(.title2.weight(.semibold))
+                    .font(.title.weight(.semibold))
                     .foregroundStyle(CoachTheme.accentMint)
             } else {
                 MiniBodySilhouette(primaryMuscles: primaryMuscles, secondaryMuscles: secondaryMuscles)
-                    .padding(7)
+                    .padding(5)
             }
         }
         .overlay(
@@ -206,10 +270,22 @@ private struct MiniBodySilhouette: View {
             let width = proxy.size.width
             let height = proxy.size.height
             ZStack {
+                Ellipse()
+                    .fill(Color.black.opacity(0.38))
+                    .frame(width: width * 0.66, height: height * 0.10)
+                    .offset(y: height * 0.45)
+
                 VStack(spacing: height * 0.026) {
                     Circle()
-                        .fill(Color.white.opacity(0.22))
-                        .frame(width: width * 0.20, height: width * 0.20)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.38), Color.white.opacity(0.15)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: width * 0.18, height: width * 0.18)
+                        .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
                     torso(width: width, height: height)
                     HStack(spacing: width * 0.07) {
                         leg(width: width, height: height, muscle: .quads)
@@ -222,13 +298,22 @@ private struct MiniBodySilhouette: View {
 
     private func torso(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: width * 0.08, style: .continuous)
-                .fill(color(for: .chest))
-                .frame(width: width * 0.36, height: height * 0.26)
-            RoundedRectangle(cornerRadius: width * 0.05, style: .continuous)
-                .fill(color(for: .core))
-                .frame(width: width * 0.24, height: height * 0.20)
-                .offset(y: height * 0.09)
+            VStack(spacing: height * 0.010) {
+                HStack(spacing: width * 0.016) {
+                    capsule(.chest, width: width * 0.17, height: height * 0.12, corner: width * 0.04)
+                    capsule(.chest, width: width * 0.17, height: height * 0.12, corner: width * 0.04)
+                }
+                VStack(spacing: height * 0.006) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        HStack(spacing: width * 0.012) {
+                            capsule(.core, width: width * 0.085, height: height * 0.034, corner: width * 0.012)
+                            capsule(.core, width: width * 0.085, height: height * 0.034, corner: width * 0.012)
+                        }
+                    }
+                }
+            }
+            .offset(y: height * 0.04)
+
             HStack(spacing: width * 0.42) {
                 arm(width: width, height: height)
                 arm(width: width, height: height)
@@ -240,22 +325,35 @@ private struct MiniBodySilhouette: View {
 
     private func arm(width: CGFloat, height: CGFloat) -> some View {
         VStack(spacing: height * 0.012) {
-            capsule(.shoulders, width: width * 0.08, height: height * 0.12)
-            capsule(.triceps, width: width * 0.064, height: height * 0.13)
+            capsule(.shoulders, width: width * 0.085, height: height * 0.12)
+            capsule(.triceps, width: width * 0.067, height: height * 0.14)
         }
     }
 
     private func leg(width: CGFloat, height: CGFloat, muscle: MuscleGroup) -> some View {
         VStack(spacing: height * 0.014) {
-            capsule(muscle, width: width * 0.12, height: height * 0.18)
-            capsule(.calves, width: width * 0.09, height: height * 0.13)
+            capsule(muscle, width: width * 0.12, height: height * 0.19)
+            capsule(.calves, width: width * 0.09, height: height * 0.14)
         }
     }
 
-    private func capsule(_ muscle: MuscleGroup, width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous)
+    private func capsule(_ muscle: MuscleGroup, width: CGFloat, height: CGFloat, corner: CGFloat? = nil) -> some View {
+        RoundedRectangle(cornerRadius: corner ?? min(width, height) * 0.45, style: .continuous)
             .fill(color(for: muscle))
             .frame(width: width, height: height)
+            .overlay(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.30), Color.clear, Color.black.opacity(0.12)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: corner ?? min(width, height) * 0.45, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: corner ?? min(width, height) * 0.45, style: .continuous)
+                    .stroke(Color.white.opacity(isActivated(muscle) ? 0.22 : 0.06), lineWidth: 1)
+            )
+            .shadow(color: color(for: muscle).opacity(isActivated(muscle) ? 0.28 : 0.03), radius: isActivated(muscle) ? 8 : 2)
     }
 
     private func color(for muscle: MuscleGroup) -> Color {
@@ -266,6 +364,10 @@ private struct MiniBodySilhouette: View {
             return CoachTheme.muscle.opacity(0.58)
         }
         return Color.white.opacity(0.26)
+    }
+
+    private func isActivated(_ muscle: MuscleGroup) -> Bool {
+        primary.contains(muscle) || secondary.contains(muscle) || primary.contains(.fullBody) || secondary.contains(.fullBody)
     }
 }
 
@@ -278,39 +380,47 @@ private struct BenchPoseFigure: View {
             let width = proxy.size.width
             let height = proxy.size.height
             ZStack {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.white.opacity(0.16))
-                    .frame(width: width * 0.62, height: 7)
-                    .offset(y: height * 0.18)
+                Ellipse()
+                    .fill(Color.black.opacity(0.34))
+                    .frame(width: width * 0.82, height: height * 0.11)
+                    .offset(y: height * 0.30)
 
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.white.opacity(0.22))
-                    .frame(width: width * 0.80, height: 4)
+                    .fill(Color.white.opacity(0.20))
+                    .frame(width: width * 0.68, height: 9)
+                    .offset(y: height * 0.20)
+
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.white.opacity(0.30))
+                    .frame(width: width * 0.86, height: 5)
                     .offset(y: -height * 0.20)
 
                 Circle()
-                    .stroke(Color.white.opacity(0.28), lineWidth: 3)
-                    .frame(width: width * 0.11, height: width * 0.11)
+                    .stroke(Color.white.opacity(0.34), lineWidth: 4)
+                    .frame(width: width * 0.13, height: width * 0.13)
                     .offset(x: -width * 0.45, y: -height * 0.20)
                 Circle()
-                    .stroke(Color.white.opacity(0.28), lineWidth: 3)
-                    .frame(width: width * 0.11, height: width * 0.11)
+                    .stroke(Color.white.opacity(0.34), lineWidth: 4)
+                    .frame(width: width * 0.13, height: width * 0.13)
                     .offset(x: width * 0.45, y: -height * 0.20)
 
-                RoundedRectangle(cornerRadius: height * 0.05, style: .continuous)
-                    .fill(CoachTheme.muscle.opacity(primaryMuscles.contains(.chest) ? 1 : 0.42))
-                    .frame(width: width * 0.40, height: height * 0.16)
+                HStack(spacing: width * 0.02) {
+                    benchMuscle(.chest, width: width * 0.20, height: height * 0.15)
+                    benchMuscle(.chest, width: width * 0.20, height: height * 0.15)
+                }
+                .rotationEffect(.degrees(-8))
+                .offset(y: height * 0.02)
+
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.white.opacity(0.18))
+                    .frame(width: width * 0.26, height: height * 0.12)
                     .rotationEffect(.degrees(-8))
-                    .offset(y: height * 0.02)
+                    .offset(x: width * 0.20, y: height * 0.06)
 
                 HStack(spacing: width * 0.42) {
-                    RoundedRectangle(cornerRadius: 9)
-                        .fill(CoachTheme.muscle.opacity(primaryMuscles.contains(.triceps) ? 1 : 0.58))
-                        .frame(width: width * 0.10, height: height * 0.30)
+                    benchMuscle(.triceps, width: width * 0.10, height: height * 0.30)
                         .rotationEffect(.degrees(-38))
-                    RoundedRectangle(cornerRadius: 9)
-                        .fill(CoachTheme.muscle.opacity(primaryMuscles.contains(.triceps) ? 1 : 0.58))
-                        .frame(width: width * 0.10, height: height * 0.30)
+                    benchMuscle(.triceps, width: width * 0.10, height: height * 0.30)
                         .rotationEffect(.degrees(38))
                 }
                 .offset(y: -height * 0.08)
@@ -321,6 +431,31 @@ private struct BenchPoseFigure: View {
                     .offset(x: -width * 0.27, y: height * 0.03)
             }
         }
+    }
+
+    private func benchMuscle(_ muscle: MuscleGroup, width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous)
+            .fill(muscleColor(muscle))
+            .frame(width: width, height: height)
+            .overlay(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.28), Color.clear, Color.black.opacity(0.16)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: min(width, height) * 0.45, style: .continuous))
+            )
+            .shadow(color: muscleColor(muscle).opacity(primaryMuscles.contains(muscle) ? 0.35 : 0.06), radius: primaryMuscles.contains(muscle) ? 10 : 2)
+    }
+
+    private func muscleColor(_ muscle: MuscleGroup) -> Color {
+        if primaryMuscles.contains(muscle) {
+            return CoachTheme.muscle
+        }
+        if secondaryMuscles.contains(muscle) {
+            return CoachTheme.muscle.opacity(0.58)
+        }
+        return Color.white.opacity(0.24)
     }
 }
 
