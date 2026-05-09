@@ -4,6 +4,7 @@ import Foundation
 final class OnboardingViewModel: ObservableObject {
     @Published var name = ""
     @Published var goal: FitnessGoal = .muscleGain
+    @Published var selectedGoals: Set<FitnessGoal> = [.muscleGain, .athleticBody]
     @Published var experienceLevel: ExperienceLevel = .intermediate
     @Published var workoutDaysPerWeek = 4
     @Published var durationPreference: WorkoutDurationPreference = .fortyFive
@@ -14,6 +15,25 @@ final class OnboardingViewModel: ObservableObject {
     @Published var cardioPreference: CardioPreference = .mixed
     @Published var trainingStyle: TrainingStyle = .hypertrophy
     @Published var isGenerating = false
+
+    var primaryGoal: FitnessGoal {
+        if selectedGoals.contains(.athleticBody) {
+            return .athleticBody
+        }
+        return selectedGoals.sorted { $0.rawValue < $1.rawValue }.first ?? goal
+    }
+
+    func toggleGoal(_ item: FitnessGoal) {
+        if selectedGoals.contains(item) {
+            selectedGoals.remove(item)
+        } else {
+            selectedGoals.insert(item)
+        }
+        if selectedGoals.isEmpty {
+            selectedGoals.insert(.generalFitness)
+        }
+        goal = primaryGoal
+    }
 
     func toggleEquipment(_ item: EquipmentType) {
         if equipment.contains(item) {
@@ -47,7 +67,7 @@ final class OnboardingViewModel: ObservableObject {
     func makeProfile() -> UserProfile {
         UserProfile(
             name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Athlete" : name,
-            goal: goal,
+            goal: primaryGoal,
             experienceLevel: experienceLevel,
             workoutDaysPerWeek: workoutDaysPerWeek,
             durationPreference: durationPreference,

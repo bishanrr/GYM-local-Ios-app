@@ -2,15 +2,25 @@ import SwiftUI
 
 struct WorkoutPlanView: View {
     @EnvironmentObject private var appModel: AppViewModel
+    @State private var selectedTab = "Exercises"
+    @State private var activeWorkout: WorkoutDay?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    planHeader
-                    if let week = appModel.activeWeek {
-                        ForEach(week.days) { day in
-                            WorkoutDayPlanCard(day: day, isCompleted: appModel.isWorkoutCompleted(day))
+                    if let workout = appModel.todayWorkout {
+                        workoutHeader(workout)
+                        CoachSegmentedControl(items: ["Exercises", "Details"], selection: $selectedTab)
+
+                        if selectedTab == "Exercises" {
+                            exerciseList(for: workout)
+                        } else {
+                            details(for: workout)
+                        }
+
+                        PrimaryCoachButton(title: "Start Workout", systemImage: "play.fill") {
+                            activeWorkout = workout
                         }
                     } else {
                         EmptyStateView(
@@ -21,67 +31,131 @@ struct WorkoutPlanView: View {
                     }
                 }
                 .padding(20)
+                .padding(.bottom, 20)
             }
-            .navigationTitle("Plan")
+            .navigationTitle("")
             .coachInlineNavigationTitle()
             .background(CoachTheme.background)
         }
+        .coachFullScreenCover(item: $activeWorkout) { workout in
+            ActiveWorkoutView(workout: workout)
+                .environmentObject(appModel)
+        }
     }
 
-    private var planHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(appModel.snapshot.activePlan?.title ?? "Workout Plan")
-                .font(.largeTitle.weight(.bold))
+    private func workoutHeader(_ workout: WorkoutDay) -> some View {
+        HStack {
+            GlassIconButton(systemImage: "chevron.left", title: "Back") {}
+            Spacer()
+            Text(workout.title)
+                .font(.headline.weight(.bold))
                 .foregroundStyle(CoachTheme.primaryText)
-            Text(appModel.snapshot.activePlan?.summary ?? "Generated workouts will appear here.")
-                .font(.subheadline)
+            Spacer()
+            GlassIconButton(systemImage: "ellipsis", title: "More") {}
+        }
+        .padding(.top, 6)
+    }
+
+    private func exerciseList(for workout: WorkoutDay) -> some View {
+        VStack(spacing: 14) {
+            if !workout.warmUpExercises.isEmpty {
+                section(title: "Warm Up", exercises: workout.warmUpExercises)
+            }
+
+            section(title: "Workout", exercises: workout.mainExercises)
+
+            if !workout.stretchingExercises.isEmpty {
+                section(title: "Stretching", exercises: workout.stretchingExercises)
+            }
+        }
+    }
+
+    private func section(title: String, exercises: [Exercise]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.caption.weight(.bold))
                 .foregroundStyle(CoachTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+                .textCase(.uppercase)
+
+            VStack(spacing: 10) {
+                ForEach(exercises) { exercise in
+                    NavigationLink {
+                        ExerciseDetailView(exercise: exercise)
+                    } label: {
+                        ExerciseListCard(exercise: exercise)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func details(for workout: WorkoutDay) -> some View {
+        VStack(spacing: 12) {
+            PremiumCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "Workout Structure", subtitle: "Auto-flow runs every phase in order.")
+                    HStack(spacing: 10) {
+                        StatTile(value: "\(workout.warmUpExercises.count)", label: "Warm Up")
+                        StatTile(value: "\(workout.mainExercises.count)", label: "Workout")
+                        StatTile(value: "\(workout.stretchingExercises.count)", label: "Stretch")
+                    }
+                }
+            }
+
+            PremiumCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(title: "Muscle Focus", subtitle: workout.muscleFocus.map(\.rawValue).joined(separator: " • "))
+                    HStack(spacing: 12) {
+                        MuscleDiagramView(primaryMuscles: workout.muscleFocus, secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles), side: .front)
+                        MuscleDiagramView(primaryMuscles: workout.muscleFocus, secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles), side: .back)
+                    }
+                    .frame(maxHeight: 300)
+                }
+            }
         }
     }
 }
 
-private struct WorkoutDayPlanCard: View {
-    var day: WorkoutDay
-    var isCompleted: Bool
+private struct ExerciseListCard: View {
+    var exercise: Exercise
 
     var body: some View {
-        PremiumCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Day \(day.dayIndex)")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(isCompleted ? CoachTheme.accentMint : CoachTheme.accentBlue)
-                        Text(day.title)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(CoachTheme.primaryText)
-                    }
-                    Spacer()
-                    Image(systemName: isCompleted ? "checkmark.seal.fill" : "circle")
-                        .foregroundStyle(isCompleted ? CoachTheme.accentMint : CoachTheme.tertiaryText)
-                }
+        HStack(spacing: 14) {
+            WorkoutThumbnail(primaryMuscles: exercise.primaryMuscles, secondaryMuscles: exercise.secondaryMuscles, phase: exercise.phase)
+                .frame(width: 64, height: 64)
 
-                HStack(spacing: 10) {
-                    MetricPill(title: "Duration", value: "\(day.estimatedDurationMinutes)m", systemImage: "clock", tint: CoachTheme.accentBlue)
-                    MetricPill(title: "Difficulty", value: day.difficulty.rawValue, systemImage: "gauge.with.dots.needle.67percent", tint: CoachTheme.accentGold)
-                }
-
-                VStack(spacing: 12) {
-                    ForEach(day.exercises) { exercise in
-                        NavigationLink {
-                            ExerciseDetailView(exercise: exercise)
-                        } label: {
-                            ExerciseSummaryRow(exercise: exercise)
-                        }
-                        .buttonStyle(.plain)
-
-                        if exercise.id != day.exercises.last?.id {
-                            Divider().overlay(Color.white.opacity(0.08))
-                        }
-                    }
-                }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(exercise.name)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(CoachTheme.secondaryText)
+                    .lineLimit(1)
             }
+
+            Spacer()
+
+            Image(systemName: "ellipsis")
+                .font(.headline)
+                .foregroundStyle(CoachTheme.tertiaryText)
         }
+        .padding(12)
+        .background(CoachTheme.surface.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(CoachTheme.stroke, lineWidth: 1)
+        )
+    }
+
+    private var subtitle: String {
+        if exercise.phase == .main {
+            return "\(exercise.sets) sets x \(exercise.targetReps.label) reps"
+        }
+        return "\(Int(exercise.workDuration)) sec \(exercise.phase.rawValue.lowercased())"
     }
 }

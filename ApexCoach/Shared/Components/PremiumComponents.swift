@@ -38,7 +38,7 @@ struct PrimaryCoachButton: View {
             .frame(height: 56)
             .background(CoachTheme.accentGradient)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .shadow(color: CoachTheme.accentBlue.opacity(0.28), radius: 22, y: 12)
+            .shadow(color: CoachTheme.accentBlue.opacity(0.30), radius: 18, y: 10)
         }
         .disabled(isLoading)
         .buttonStyle(.plain)
@@ -56,7 +56,7 @@ struct GlassIconButton: View {
                 .font(.headline)
                 .foregroundStyle(CoachTheme.primaryText)
                 .frame(width: 44, height: 44)
-                .background(CoachTheme.surface)
+                .background(CoachTheme.surfaceStrong)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -99,7 +99,7 @@ struct MetricPill: View {
         .frame(minHeight: 54)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(CoachTheme.surface)
+        .background(CoachTheme.surfaceStrong.opacity(0.72))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -166,11 +166,11 @@ struct SelectionChip: View {
                 .padding(.horizontal, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isSelected ? CoachTheme.accentPurple.opacity(0.88) : CoachTheme.surface)
+                        .fill(isSelected ? CoachTheme.accentGradient : LinearGradient(colors: [CoachTheme.surfaceStrong, CoachTheme.surface], startPoint: .topLeading, endPoint: .bottomTrailing))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isSelected ? CoachTheme.accentBlue.opacity(0.55) : CoachTheme.stroke, lineWidth: 1)
+                        .stroke(isSelected ? Color.white.opacity(0.22) : CoachTheme.stroke, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -183,27 +183,27 @@ struct ExerciseSummaryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            MuscleMiniGlyph(primaryMuscles: exercise.primaryMuscles)
-                .frame(width: 44, height: 44)
+            WorkoutThumbnail(primaryMuscles: exercise.primaryMuscles, secondaryMuscles: exercise.secondaryMuscles, phase: exercise.phase)
+                .frame(width: 58, height: 58)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(CoachTheme.primaryText)
                     .lineLimit(1)
-                Text("\(exercise.sets)x \(exercise.targetReps.label) reps • \(Int(exercise.restDuration))s rest")
+                Text(exercise.phase == .main ? "\(exercise.sets) sets x \(exercise.targetReps.label) reps" : "\(Int(exercise.workDuration)) sec • \(exercise.phase.rawValue)")
                     .font(.caption)
                     .foregroundStyle(CoachTheme.secondaryText)
                     .lineLimit(1)
             }
             Spacer()
             if showsAccessory {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                Image(systemName: "ellipsis")
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(CoachTheme.tertiaryText)
             }
         }
-        .frame(minHeight: 56)
+        .frame(minHeight: 66)
     }
 }
 
@@ -227,5 +227,110 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity)
         .premiumCardStyle()
+    }
+}
+
+struct CoachSegmentedControl: View {
+    var items: [String]
+    @Binding var selection: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(items, id: \.self) { item in
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                        selection = item
+                    }
+                } label: {
+                    Text(item)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(selection == item ? CoachTheme.primaryText : CoachTheme.secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(selection == item ? Color.white.opacity(0.12) : Color.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(CoachTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(CoachTheme.stroke, lineWidth: 1)
+        )
+    }
+}
+
+struct WeekProgressStrip: View {
+    var completedCount: Int
+    var totalCount: Int
+    private let labels = ["M", "T", "W", "T", "F", "S", "S"]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(labels.indices, id: \.self) { index in
+                VStack(spacing: 8) {
+                    Text(labels[index])
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                    Image(systemName: index < completedCount ? "checkmark" : "circle.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(index < completedCount ? .white : Color.white.opacity(0.20))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .background(index < totalCount ? (index < completedCount ? CoachTheme.accentBlue.opacity(0.9) : CoachTheme.surfaceStrong) : CoachTheme.surface.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+        }
+    }
+}
+
+struct MiniVolumeChart: View {
+    var values: [Double]
+    var highlightedIndex: Int? = nil
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            ForEach(values.indices, id: \.self) { index in
+                Capsule()
+                    .fill(index == highlightedIndex ? CoachTheme.accentGradient : LinearGradient(colors: [CoachTheme.accentPurple.opacity(0.75), CoachTheme.accentBlue.opacity(0.75)], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 7, height: max(10, normalized(values[index]) * 70))
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 78, alignment: .bottom)
+    }
+
+    private func normalized(_ value: Double) -> CGFloat {
+        let maxValue = max(values.max() ?? 1, 1)
+        return CGFloat(value / maxValue)
+    }
+}
+
+struct StatTile: View {
+    var value: String
+    var label: String
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(value)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(CoachTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(CoachTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 72)
+        .background(CoachTheme.surfaceStrong.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

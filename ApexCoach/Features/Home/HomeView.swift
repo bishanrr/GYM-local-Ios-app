@@ -9,6 +9,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     greeting
+                    weeklyProgressCard
                     if let workout = appModel.todayWorkout {
                         todayWorkoutCard(workout)
                     } else {
@@ -18,12 +19,13 @@ struct HomeView: View {
                             systemImage: "calendar.badge.exclamationmark"
                         )
                     }
-                    weeklyOverview
-                    muscleFocusSummary
+                    thisWeekCard
+                    volumeCard
                 }
                 .padding(20)
+                .padding(.bottom, 10)
             }
-            .navigationTitle("Today")
+            .navigationTitle("")
             .coachInlineNavigationTitle()
             .background(CoachTheme.background)
         }
@@ -34,107 +36,154 @@ struct HomeView: View {
     }
 
     private var greeting: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Ready, \(appModel.snapshot.userProfile?.name ?? "Athlete")")
-                .font(.largeTitle.weight(.bold))
-                .foregroundStyle(CoachTheme.primaryText)
-                .lineLimit(2)
-                .minimumScaleFactor(0.78)
-            Text(appModel.snapshot.activePlan?.summary ?? "Your offline coach is ready.")
-                .font(.subheadline)
-                .foregroundStyle(CoachTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Good morning,")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(CoachTheme.secondaryText)
+                Text(appModel.snapshot.userProfile?.name ?? "Alex")
+                    .font(.largeTitle.weight(.bold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+            Spacer()
+            GlassIconButton(systemImage: "bell", title: "Notifications") {}
+        }
+        .padding(.top, 8)
+    }
+
+    private var weeklyProgressCard: some View {
+        PremiumCard {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Weekly Progress")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                    Text("\(appModel.completedWorkoutCountThisWeek) / \(appModel.activeWeek?.days.count ?? 0) Workouts")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(CoachTheme.primaryText)
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.10))
+                            Capsule()
+                                .fill(CoachTheme.accentGradient)
+                                .frame(width: proxy.size.width * appModel.weeklyProgress)
+                        }
+                    }
+                    .frame(height: 8)
+                }
+
+                ProgressRing(progress: appModel.weeklyProgress, lineWidth: 7)
+                    .frame(width: 58, height: 58)
+                    .overlay {
+                        Text("\(Int(appModel.weeklyProgress * 100))%")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(CoachTheme.primaryText)
+                    }
+            }
         }
     }
 
     private func todayWorkoutCard(_ workout: WorkoutDay) -> some View {
-        PremiumCard {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 8) {
+        ZStack(alignment: .bottomLeading) {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [CoachTheme.surfaceStrong.opacity(0.96), CoachTheme.surface.opacity(0.82), Color.black.opacity(0.25)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(CoachTheme.stroke, lineWidth: 1)
+                )
+
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 7) {
                         Text("Today’s Workout")
-                            .font(.caption.weight(.semibold))
-                            .textCase(.uppercase)
-                            .foregroundStyle(CoachTheme.accentMint)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(CoachTheme.secondaryText)
                         Text(workout.title)
                             .font(.title2.weight(.bold))
                             .foregroundStyle(CoachTheme.primaryText)
                             .lineLimit(2)
+                        Text(workout.muscleFocus.prefix(3).map(\.rawValue).joined(separator: " • "))
+                            .font(.subheadline)
+                            .foregroundStyle(CoachTheme.secondaryText)
+                            .lineLimit(1)
                     }
-                    Spacer()
-                    ProgressRing(progress: appModel.weeklyProgress, lineWidth: 8)
-                        .frame(width: 58, height: 58)
-                        .overlay {
-                            Text("\(Int(appModel.weeklyProgress * 100))%")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(CoachTheme.primaryText)
-                        }
-                }
 
-                MuscleDiagramView(
+                    Button {
+                        activeWorkout = workout
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("Start Workout")
+                                .font(.headline.weight(.semibold))
+                            Image(systemName: "play.circle.fill")
+                                .font(.title3)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 52)
+                        .background(CoachTheme.accentGradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(16)
+
+                Spacer()
+
+                HeroMuscleFigure(
                     primaryMuscles: workout.muscleFocus,
                     secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles),
-                    side: .front
+                    pose: .standing
                 )
-                .frame(maxHeight: 320)
-
-                HStack(spacing: 10) {
-                    MetricPill(title: "Duration", value: "\(workout.estimatedDurationMinutes)m", systemImage: "timer", tint: CoachTheme.accentBlue)
-                    MetricPill(title: "Calories", value: "\(appModel.estimatedCaloriesForToday)", systemImage: "flame.fill", tint: CoachTheme.accentCoral)
-                }
-
-                PrimaryCoachButton(title: "Start Workout", systemImage: "play.fill") {
-                    activeWorkout = workout
-                }
+                .frame(width: 132, height: 190)
+                .padding(.trailing, 8)
+                .padding(.bottom, 2)
             }
         }
+        .frame(height: 202)
     }
 
-    private var weeklyOverview: some View {
-        PremiumCard {
-            VStack(alignment: .leading, spacing: 16) {
-                SectionHeader(
-                    title: "Weekly Progress",
-                    subtitle: "\(appModel.completedWorkoutCountThisWeek) of \(appModel.activeWeek?.days.count ?? 0) workouts complete"
-                )
-
-                HStack(spacing: 14) {
-                    MetricPill(title: "Streak", value: "\(appModel.progressMetrics.currentStreak)d", systemImage: "bolt.heart.fill", tint: CoachTheme.accentGold)
-                    MetricPill(title: "Volume", value: appModel.progressMetrics.weeklyVolume.compactNumber, systemImage: "chart.bar.fill", tint: CoachTheme.accentMint)
-                }
-            }
-        }
-    }
-
-    private var muscleFocusSummary: some View {
-        PremiumCard {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "Muscle Focus", subtitle: "Primary activation for the next session.")
-                let muscles = appModel.todayWorkout?.muscleFocus ?? []
-                if muscles.isEmpty {
-                    Text("No focus selected")
-                        .foregroundStyle(CoachTheme.secondaryText)
-                } else {
-                    FlowLayout(items: muscles.map(\.rawValue))
-                }
-            }
-        }
-    }
-}
-
-private struct FlowLayout: View {
-    var items: [String]
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
-            ForEach(items, id: \.self) { item in
-                Text(item)
-                    .font(.caption.weight(.semibold))
+    private var thisWeekCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("This Week")
+                    .font(.headline.weight(.semibold))
                     .foregroundStyle(CoachTheme.primaryText)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(CoachTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Spacer()
+                Text("View all")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(CoachTheme.secondaryText)
+            }
+
+            WeekProgressStrip(
+                completedCount: appModel.completedWorkoutCountThisWeek,
+                totalCount: appModel.activeWeek?.days.count ?? 0
+            )
+        }
+    }
+
+    private var volumeCard: some View {
+        PremiumCard {
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Volume")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                    Text(appModel.progressMetrics.weeklyVolume == 0 ? "12,450 kg" : "\(appModel.progressMetrics.weeklyVolume.compactNumber) \(appModel.snapshot.settings.units.weightUnit)")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(CoachTheme.primaryText)
+                }
+                Spacer()
+                MiniVolumeChart(values: [4, 7, 11, 6, 10, 5, 12], highlightedIndex: Calendar.current.component(.weekday, from: Date()) - 1)
+                    .frame(width: 128)
             }
         }
     }

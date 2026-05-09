@@ -79,15 +79,15 @@ struct OnboardingFlowView: View {
         VStack(spacing: 18) {
             PremiumCard {
                 VStack(alignment: .leading, spacing: 16) {
-                    SectionHeader(title: "Goal", subtitle: "The plan generator uses this to bias volume, intensity, and rest.")
+                    SectionHeader(title: "Goals", subtitle: "Select all that apply. Athletic Body is tuned for lean muscle, posture, and conditioning.")
                     TextField("Name", text: $viewModel.name)
                         .padding(14)
                         .background(CoachTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .foregroundStyle(CoachTheme.primaryText)
 
-                    SelectionGrid(items: FitnessGoal.allCases, selected: viewModel.goal) { item in
-                        viewModel.goal = item
+                    MultiSelectionGrid(items: FitnessGoal.allCases, selected: viewModel.selectedGoals) { item in
+                        viewModel.toggleGoal(item)
                     } label: { $0.rawValue }
                 }
             }
@@ -211,7 +211,7 @@ struct OnboardingFlowView: View {
                 SectionHeader(title: "Program Ready", subtitle: "Generation uses local rules now, with a service boundary ready for an AI API later.")
 
                 HStack(spacing: 12) {
-                    MetricPill(title: "Goal", value: viewModel.goal.rawValue, systemImage: "target", tint: CoachTheme.accentMint)
+                    MetricPill(title: "Primary Goal", value: viewModel.primaryGoal.rawValue, systemImage: "target", tint: CoachTheme.accentMint)
                     MetricPill(title: "Week", value: "\(viewModel.workoutDaysPerWeek)x", systemImage: "calendar", tint: CoachTheme.accentBlue)
                 }
 
@@ -276,6 +276,23 @@ private struct SelectionGrid<Item: Identifiable & Hashable>: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 10)], spacing: 10) {
             ForEach(items) { item in
                 SelectionChip(title: label(item), isSelected: item == selected) {
+                    action(item)
+                }
+            }
+        }
+    }
+}
+
+private struct MultiSelectionGrid<Item: Identifiable & Hashable>: View {
+    var items: [Item]
+    var selected: Set<Item>
+    var action: (Item) -> Void
+    var label: (Item) -> String
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 10)], spacing: 10) {
+            ForEach(items) { item in
+                SelectionChip(title: label(item), isSelected: selected.contains(item)) {
                     action(item)
                 }
             }

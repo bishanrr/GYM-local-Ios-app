@@ -126,6 +126,13 @@ final class WorkoutTimerEngine: ObservableObject {
         HapticEngine.impact(.medium)
     }
 
+    func completeSet() {
+        guard mode == .work else { return }
+        completeCurrentPhase(anchorDate: Date(), setWasSuccessful: true)
+        recoverFromClock()
+        HapticEngine.impact(.heavy)
+    }
+
     func endWorkout(markCompleted: Bool = false) -> WorkoutSession {
         finish()
         return makeSession(wasCompleted: markCompleted)

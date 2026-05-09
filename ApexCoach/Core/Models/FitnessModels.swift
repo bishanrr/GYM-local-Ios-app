@@ -3,6 +3,7 @@ import Foundation
 enum FitnessGoal: String, Codable, CaseIterable, Identifiable, Hashable {
     case fatLoss = "Fat Loss"
     case muscleGain = "Muscle Gain"
+    case athleticBody = "Athletic Body"
     case strength = "Strength"
     case athleticPerformance = "Athletic Performance"
     case endurance = "Endurance"
@@ -95,6 +96,14 @@ enum DifficultyLevel: String, Codable, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
+enum ExercisePhase: String, Codable, CaseIterable, Identifiable, Hashable {
+    case warmUp = "Warm Up"
+    case main = "Workout"
+    case stretching = "Stretching"
+
+    var id: String { rawValue }
+}
+
 enum PlanGenerationSource: String, Codable, Hashable {
     case localRules = "Local Rules"
     case remoteAI = "Remote AI"
@@ -178,6 +187,7 @@ struct Exercise: Identifiable, Codable, Equatable, Hashable {
     var workDuration: TimeInterval
     var equipment: [EquipmentType]
     var difficulty: DifficultyLevel
+    var phase: ExercisePhase
 
     init(
         id: UUID = UUID(),
@@ -193,7 +203,8 @@ struct Exercise: Identifiable, Codable, Equatable, Hashable {
         restDuration: TimeInterval,
         workDuration: TimeInterval,
         equipment: [EquipmentType],
-        difficulty: DifficultyLevel
+        difficulty: DifficultyLevel,
+        phase: ExercisePhase = .main
     ) {
         self.id = id
         self.name = name
@@ -209,6 +220,44 @@ struct Exercise: Identifiable, Codable, Equatable, Hashable {
         self.workDuration = workDuration
         self.equipment = equipment
         self.difficulty = difficulty
+        self.phase = phase
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case primaryMuscles
+        case secondaryMuscles
+        case instructions
+        case tips
+        case safetyNotes
+        case sets
+        case targetReps
+        case suggestedWeight
+        case restDuration
+        case workDuration
+        case equipment
+        case difficulty
+        case phase
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        primaryMuscles = try container.decode([MuscleGroup].self, forKey: .primaryMuscles)
+        secondaryMuscles = try container.decode([MuscleGroup].self, forKey: .secondaryMuscles)
+        instructions = try container.decode([String].self, forKey: .instructions)
+        tips = try container.decode([String].self, forKey: .tips)
+        safetyNotes = try container.decode([String].self, forKey: .safetyNotes)
+        sets = try container.decode(Int.self, forKey: .sets)
+        targetReps = try container.decode(RepRange.self, forKey: .targetReps)
+        suggestedWeight = try container.decodeIfPresent(Double.self, forKey: .suggestedWeight)
+        restDuration = try container.decode(TimeInterval.self, forKey: .restDuration)
+        workDuration = try container.decode(TimeInterval.self, forKey: .workDuration)
+        equipment = try container.decode([EquipmentType].self, forKey: .equipment)
+        difficulty = try container.decode(DifficultyLevel.self, forKey: .difficulty)
+        phase = try container.decodeIfPresent(ExercisePhase.self, forKey: .phase) ?? .main
     }
 }
 
@@ -240,6 +289,18 @@ struct WorkoutDay: Identifiable, Codable, Equatable, Hashable {
         self.exercises = exercises
         self.muscleFocus = muscleFocus
         self.difficulty = difficulty
+    }
+
+    var warmUpExercises: [Exercise] {
+        exercises.filter { $0.phase == .warmUp }
+    }
+
+    var mainExercises: [Exercise] {
+        exercises.filter { $0.phase == .main }
+    }
+
+    var stretchingExercises: [Exercise] {
+        exercises.filter { $0.phase == .stretching }
     }
 }
 

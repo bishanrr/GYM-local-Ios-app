@@ -123,7 +123,8 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
             selected.append(finisher)
         }
 
-        return selected.prefix(targetCount + 1).map { configuredExercise(from: $0, profile: userProfile) }
+        let mainWork = selected.prefix(targetCount + 1).map { configuredExercise(from: $0, profile: userProfile) }
+        return warmUpExercises(for: muscles, profile: userProfile) + mainWork + stretchingExercises(for: muscles, profile: userProfile)
     }
 
     private func configuredExercise(from template: ExerciseTemplate, profile: UserProfile) -> Exercise {
@@ -197,7 +198,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
             rest = max(45, rest - 10)
         }
 
-        if profile.goal == .fatLoss || profile.goal == .endurance {
+        if profile.goal == .fatLoss || profile.goal == .endurance || profile.goal == .athleticBody {
             rest = max(30, rest - 10)
         }
 
@@ -233,5 +234,155 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
         case .advanced:
             return .hard
         }
+    }
+
+    private func warmUpExercises(for muscles: [MuscleGroup], profile: UserProfile) -> [Exercise] {
+        let focus = Set(muscles)
+        var warmups: [Exercise] = [
+            Exercise(
+                name: "Breathing Reset",
+                primaryMuscles: [.core],
+                secondaryMuscles: [.glutes],
+                instructions: ["Stand tall and breathe through the nose.", "Exhale slowly while bracing the ribs down.", "Build light tension before moving."],
+                tips: ["Keep this easy and smooth.", "Use the warm-up to scan for restrictions."],
+                safetyNotes: ["Skip any movement that reproduces pain."],
+                sets: 1,
+                targetReps: RepRange(lowerBound: 5, upperBound: 6),
+                restDuration: 10,
+                workDuration: 35,
+                equipment: [.bodyweight],
+                difficulty: .easy,
+                phase: .warmUp
+            )
+        ]
+
+        if focus.contains(.chest) || focus.contains(.shoulders) || focus.contains(.back) {
+            warmups.append(
+                Exercise(
+                    name: "Shoulder Activation Flow",
+                    primaryMuscles: [.shoulders, .back],
+                    secondaryMuscles: [.chest, .core],
+                    instructions: ["Circle the shoulders with control.", "Sweep arms overhead without shrugging.", "Finish with slow scapular squeezes."],
+                    tips: ["Move through a comfortable range.", "Let the upper back wake up before loading."],
+                    safetyNotes: ["Avoid aggressive overhead range if shoulders feel pinchy."],
+                    sets: 1,
+                    targetReps: RepRange(lowerBound: 8, upperBound: 10),
+                    restDuration: 15,
+                    workDuration: 45,
+                    equipment: [.bodyweight, .resistanceBands],
+                    difficulty: .easy,
+                    phase: .warmUp
+                )
+            )
+        }
+
+        if focus.contains(.quads) || focus.contains(.hamstrings) || focus.contains(.glutes) || focus.contains(.calves) {
+            warmups.append(
+                Exercise(
+                    name: "Hip + Squat Primer",
+                    primaryMuscles: [.glutes, .quads],
+                    secondaryMuscles: [.hamstrings, .core],
+                    instructions: ["Hinge at the hips for three slow reps.", "Drop into an easy squat and open the hips.", "Stand tall and squeeze the glutes."],
+                    tips: ["Keep feet rooted.", "Use this to find your working stance."],
+                    safetyNotes: ["Shorten the squat if knees or hips feel irritated."],
+                    sets: 1,
+                    targetReps: RepRange(lowerBound: 6, upperBound: 8),
+                    restDuration: 15,
+                    workDuration: 45,
+                    equipment: [.bodyweight],
+                    difficulty: .easy,
+                    phase: .warmUp
+                )
+            )
+        }
+
+        return Array(warmups.prefix(profile.durationPreference == .thirty ? 2 : 3))
+    }
+
+    private func stretchingExercises(for muscles: [MuscleGroup], profile: UserProfile) -> [Exercise] {
+        let focus = Set(muscles)
+        var stretches: [Exercise] = []
+
+        if focus.contains(.chest) || focus.contains(.shoulders) {
+            stretches.append(
+                Exercise(
+                    name: "Chest + Shoulder Stretch",
+                    primaryMuscles: [.chest, .shoulders],
+                    secondaryMuscles: [.biceps],
+                    instructions: ["Set the forearm against a wall or rack.", "Turn gently away until the chest opens.", "Hold with slow breathing."],
+                    tips: ["Keep the shoulder low.", "Ease in instead of forcing range."],
+                    safetyNotes: ["Back off if the stretch turns sharp or nervy."],
+                    sets: 1,
+                    targetReps: RepRange(lowerBound: 1, upperBound: 1),
+                    restDuration: 10,
+                    workDuration: 45,
+                    equipment: [.bodyweight, .fullGym],
+                    difficulty: .easy,
+                    phase: .stretching
+                )
+            )
+        }
+
+        if focus.contains(.back) || focus.contains(.core) {
+            stretches.append(
+                Exercise(
+                    name: "Lat + Spine Reset",
+                    primaryMuscles: [.back],
+                    secondaryMuscles: [.core, .shoulders],
+                    instructions: ["Reach both hands forward on a bench or wall.", "Sit the hips back until the lats lengthen.", "Breathe into the side ribs."],
+                    tips: ["Keep the neck relaxed.", "Think long, not intense."],
+                    safetyNotes: ["Avoid hanging on the shoulders if they feel unstable."],
+                    sets: 1,
+                    targetReps: RepRange(lowerBound: 1, upperBound: 1),
+                    restDuration: 10,
+                    workDuration: 45,
+                    equipment: [.bodyweight, .fullGym],
+                    difficulty: .easy,
+                    phase: .stretching
+                )
+            )
+        }
+
+        if focus.contains(.quads) || focus.contains(.hamstrings) || focus.contains(.glutes) || focus.contains(.calves) {
+            stretches.append(
+                Exercise(
+                    name: "Hip Flexor + Hamstring Stretch",
+                    primaryMuscles: [.hamstrings, .glutes],
+                    secondaryMuscles: [.quads, .calves],
+                    instructions: ["Start in a half-kneeling position.", "Shift forward gently, then straighten the front leg.", "Alternate sides with slow breathing."],
+                    tips: ["Keep the pelvis tucked slightly.", "Use support for balance."],
+                    safetyNotes: ["Pad the knee and avoid forcing end range."],
+                    sets: 1,
+                    targetReps: RepRange(lowerBound: 1, upperBound: 1),
+                    restDuration: 0,
+                    workDuration: 55,
+                    equipment: [.bodyweight],
+                    difficulty: .easy,
+                    phase: .stretching
+                )
+            )
+        }
+
+        if stretches.isEmpty {
+            stretches.append(
+                Exercise(
+                    name: "Full Body Downshift",
+                    primaryMuscles: [.fullBody],
+                    secondaryMuscles: [.core],
+                    instructions: ["Stand tall and inhale through the nose.", "Fold forward softly with bent knees.", "Roll up slowly and repeat."],
+                    tips: ["End calmer than you started.", "Stay away from painful range."],
+                    safetyNotes: ["Move slowly if you feel lightheaded."],
+                    sets: 1,
+                    targetReps: RepRange(lowerBound: 3, upperBound: 4),
+                    restDuration: 0,
+                    workDuration: 45,
+                    equipment: [.bodyweight],
+                    difficulty: .easy,
+                    phase: .stretching
+                )
+            )
+        }
+
+        return Array(stretches.prefix(profile.durationPreference == .thirty ? 2 : 3))
     }
 }

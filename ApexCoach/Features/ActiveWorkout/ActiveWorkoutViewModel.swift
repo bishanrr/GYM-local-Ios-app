@@ -43,6 +43,10 @@ final class ActiveWorkoutViewModel: ObservableObject {
         engine.skipSet()
     }
 
+    func completeSet() {
+        engine.completeSet()
+    }
+
     func recoverFromClock() {
         engine.recoverFromClock()
     }

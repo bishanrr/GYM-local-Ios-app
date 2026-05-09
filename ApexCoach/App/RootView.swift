@@ -57,7 +57,7 @@ private struct MainTabView: View {
 
             WorkoutPlanView()
                 .tabItem {
-                    Label("Plan", systemImage: "calendar")
+                    Label("Workouts", systemImage: "dumbbell")
                 }
 
             ProgressViewScreen()
