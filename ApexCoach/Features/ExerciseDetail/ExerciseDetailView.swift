@@ -51,6 +51,8 @@ struct ExerciseDetailView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: 18) {
+            ExerciseRemoteImagePanel(exercise: exercise)
+
             HStack(spacing: 16) {
                 MuscleDiagramView(
                     primaryMuscles: exercise.primaryMuscles,
@@ -187,5 +189,156 @@ struct ExerciseDetailView: View {
         case .fullBody:
             return "Full Body"
         }
+    }
+}
+
+private struct ExerciseRemoteImagePanel: View {
+    var exercise: Exercise
+    @StateObject private var viewModel = ExerciseImageViewModel()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack(alignment: .bottomLeading) {
+                if let image = viewModel.image {
+                    PlatformExerciseImage(image: image)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 260)
+                        .clipped()
+                } else if viewModel.isLoading {
+                    ExerciseImageShimmer()
+                        .frame(height: 260)
+                } else {
+                    MuscleDiagramView(
+                        primaryMuscles: exercise.primaryMuscles,
+                        secondaryMuscles: exercise.secondaryMuscles,
+                        viewMode: .front
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 260)
+                }
+
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.72)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(viewModel.remoteExercise?.name ?? exercise.name)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(CoachTheme.primaryText)
+                        .lineLimit(1)
+
+                    Text(panelSubtitle)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                        .lineLimit(2)
+                }
+                .padding(14)
+            }
+            .background(CoachTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(CoachTheme.stroke, lineWidth: 1)
+            )
+
+            if let remoteExercise = viewModel.remoteExercise, !remoteExercise.description.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("wger Instructions")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(CoachTheme.accentBlue)
+                    Text(remoteExercise.description)
+                        .font(.caption)
+                        .foregroundStyle(CoachTheme.secondaryText)
+                        .lineLimit(5)
+                    if !remoteExercise.equipment.isEmpty {
+                        Text("Equipment: \(remoteExercise.equipment.prefix(3).joined(separator: ", "))")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(CoachTheme.tertiaryText)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(12)
+                .background(CoachTheme.surface.opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+        }
+        .task(id: exercise.id) {
+            await viewModel.load(for: exercise)
+        }
+    }
+
+    private var panelSubtitle: String {
+        if let remote = viewModel.remoteExercise {
+            let muscles = (remote.primaryMuscles + remote.secondaryMuscles).prefix(3).joined(separator: " • ")
+            if !muscles.isEmpty {
+                return muscles
+            }
+            return remote.equipment.prefix(2).joined(separator: " • ")
+        }
+
+        if viewModel.isLoading {
+            return "Searching wger image cache"
+        }
+
+        return "Local muscle diagram fallback"
+    }
+}
+
+private struct PlatformExerciseImage: View {
+    var image: UIImage
+
+    var body: some View {
+        #if canImport(UIKit)
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+            .padding(12)
+        #elseif canImport(AppKit)
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFit()
+            .padding(12)
+        #else
+        EmptyView()
+        #endif
+    }
+}
+
+private struct ExerciseImageShimmer: View {
+    @State private var offset: CGFloat = -1
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(CoachTheme.surfaceStrong)
+            .overlay {
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.02),
+                        Color.white.opacity(0.16),
+                        Color.white.opacity(0.02)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .rotationEffect(.degrees(18))
+                .offset(x: offset * 280)
+            }
+            .overlay {
+                VStack(spacing: 12) {
+                    ProgressRing(progress: 0.64, lineWidth: 8)
+                        .frame(width: 74, height: 74)
+                    Text("Loading exercise image")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                }
+            }
+            .clipped()
+            .onAppear {
+                withAnimation(.linear(duration: 1.25).repeatForever(autoreverses: false)) {
+                    offset = 1
+                }
+            }
     }
 }

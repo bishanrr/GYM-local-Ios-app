@@ -32,6 +32,9 @@
 		B10000000000000000000017 /* CoachTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* CoachTheme.swift */; };
 		B10000000000000000000018 /* body_front.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* body_front.png */; };
 		B10000000000000000000019 /* body_back.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* body_back.png */; };
+		B1000000000000000000001A /* WgerExerciseAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* WgerExerciseAPIService.swift */; };
+		B1000000000000000000001B /* ExerciseImageCacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* ExerciseImageCacheService.swift */; };
+		B1000000000000000000001C /* ExerciseImageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001C /* ExerciseImageViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +63,9 @@
 		A10000000000000000000017 /* CoachTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem/CoachTheme.swift; sourceTree = "<group>"; };
 		A10000000000000000000018 /* body_front.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Assets/body_front.png; sourceTree = "<group>"; };
 		A10000000000000000000019 /* body_back.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Assets/body_back.png; sourceTree = "<group>"; };
+		A1000000000000000000001A /* WgerExerciseAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/WgerExerciseAPIService.swift; sourceTree = "<group>"; };
+		A1000000000000000000001B /* ExerciseImageCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/ExerciseImageCacheService.swift; sourceTree = "<group>"; };
+		A1000000000000000000001C /* ExerciseImageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ExerciseDetail/ExerciseImageViewModel.swift; sourceTree = "<group>"; };
 		A20000000000000000000001 /* ApexCoach.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ApexCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -103,6 +109,8 @@
 				A10000000000000000000011 /* ProgressiveOverloadService.swift */,
 				A1000000000000000000000F /* WorkoutTimerEngine.swift */,
 				A10000000000000000000010 /* HapticEngine.swift */,
+				A1000000000000000000001A /* WgerExerciseAPIService.swift */,
+				A1000000000000000000001B /* ExerciseImageCacheService.swift */,
 				A10000000000000000000016 /* ExerciseDatabase.swift */,
 				A10000000000000000000017 /* CoachTheme.swift */,
 				A10000000000000000000018 /* body_front.png */,
@@ -114,6 +122,7 @@
 				A1000000000000000000000C /* HomeView.swift */,
 				A10000000000000000000008 /* WorkoutPlanView.swift */,
 				A10000000000000000000007 /* ExerciseDetailView.swift */,
+				A1000000000000000000001C /* ExerciseImageViewModel.swift */,
 				A1000000000000000000000A /* ActiveWorkoutViewModel.swift */,
 				A10000000000000000000009 /* ActiveWorkoutView.swift */,
 				A1000000000000000000000B /* ProgressView.swift */,
@@ -215,6 +224,9 @@
 				B10000000000000000000015 /* FitnessModels.swift in Sources */,
 				B10000000000000000000016 /* ExerciseDatabase.swift in Sources */,
 				B10000000000000000000017 /* CoachTheme.swift in Sources */,
+				B1000000000000000000001A /* WgerExerciseAPIService.swift in Sources */,
+				B1000000000000000000001B /* ExerciseImageCacheService.swift in Sources */,
+				B1000000000000000000001C /* ExerciseImageViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
