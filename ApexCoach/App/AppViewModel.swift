@@ -175,14 +175,27 @@ final class AppViewModel: ObservableObject {
         let sourceWeekdayIndex = plan.weeks[weekIndex].days[sourceIndex].dayIndex
         guard sourceWeekdayIndex != targetWeekdayIndex else { return }
 
-        if let targetIndex = plan.weeks[weekIndex].days.firstIndex(where: { $0.dayIndex == targetWeekdayIndex }) {
-            plan.weeks[weekIndex].days[sourceIndex].dayIndex = targetWeekdayIndex
-            plan.weeks[weekIndex].days[targetIndex].dayIndex = sourceWeekdayIndex
-        } else {
-            plan.weeks[weekIndex].days[sourceIndex].dayIndex = targetWeekdayIndex
+        var days = plan.weeks[weekIndex].days
+        let movingDay = days.remove(at: sourceIndex)
+        var cursor = targetWeekdayIndex
+        var carry: WorkoutDay? = movingDay
+        var visitedDays: Set<Int> = []
+
+        while var carriedDay = carry, !visitedDays.contains(cursor) {
+            visitedDays.insert(cursor)
+            carriedDay.dayIndex = cursor
+
+            if let occupiedIndex = days.firstIndex(where: { $0.dayIndex == cursor }) {
+                carry = days[occupiedIndex]
+                days[occupiedIndex] = carriedDay
+                cursor = nextWeekdayIndex(after: cursor, fallback: sourceWeekdayIndex)
+            } else {
+                days.append(carriedDay)
+                carry = nil
+            }
         }
 
-        plan.weeks[weekIndex].days.sort { $0.dayIndex < $1.dayIndex }
+        plan.weeks[weekIndex].days = days.sorted { $0.dayIndex < $1.dayIndex }
         snapshot.activePlan = plan
         persist()
         HapticEngine.notify(.success)
@@ -362,6 +375,11 @@ final class AppViewModel: ObservableObject {
             errorMessage = "Local data could not be loaded, so a fresh offline profile is ready."
         }
         isBootstrapping = false
+    }
+
+    private func nextWeekdayIndex(after weekdayIndex: Int, fallback: Int) -> Int {
+        let nextIndex = weekdayIndex + 1
+        return nextIndex <= 7 ? nextIndex : fallback
     }
 
     private func weekdayStates(for week: WorkoutWeek) -> [WeekdayWorkoutState] {

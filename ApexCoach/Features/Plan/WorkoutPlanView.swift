@@ -27,6 +27,9 @@ struct WorkoutPlanView: View {
                             selectedDayID: selectedState?.id
                         ) { state in
                             selectedDayID = state.id
+                        } onMove: { workout, targetState in
+                            appModel.moveWorkout(workout, toWeekdayIndex: targetState.weekdayIndex)
+                            selectedDayID = targetState.id
                         }
 
                         if let state = selectedState {
@@ -90,7 +93,6 @@ struct WorkoutPlanView: View {
     private func workoutDetail(for workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             SelectedWorkoutHeader(workout: workout, state: state)
-            moveWorkoutSection(for: workout, state: state)
 
             CoachSegmentedControl(items: ["Exercises", "Details", "Extras"], selection: $selectedTab)
 
@@ -158,7 +160,6 @@ struct WorkoutPlanView: View {
                 }
             }
 
-            moveWorkoutHereSection(for: state)
             cardioExtras(for: nil, state: state)
         }
     }
@@ -223,63 +224,6 @@ struct WorkoutPlanView: View {
         }
     }
 
-    private func moveWorkoutSection(for workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
-        PremiumCard {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(
-                    title: "Move Workout",
-                    subtitle: "Shift or swap this session within week \(state.weekNumber)."
-                )
-
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                    ForEach(states(inWeek: state.weekNumber)) { targetState in
-                        MoveDayButton(
-                            state: targetState,
-                            isCurrentDay: targetState.weekdayIndex == state.weekdayIndex,
-                            canMove: canMoveWorkout(from: state, to: targetState)
-                        ) {
-                            appModel.moveWorkout(workout, toWeekdayIndex: targetState.weekdayIndex)
-                            selectedDayID = targetState.id
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func moveWorkoutHereSection(for targetState: WeekdayWorkoutState) -> some View {
-        let movableWorkouts = states(inWeek: targetState.weekNumber)
-            .filter { sourceState in
-                sourceState.workout != nil && canMoveWorkout(from: sourceState, to: targetState)
-            }
-
-        guard !movableWorkouts.isEmpty else {
-            return AnyView(EmptyView())
-        }
-
-        return AnyView(
-            PremiumCard {
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(
-                        title: "Move Here",
-                        subtitle: "Place a workout on \(weekdayName(for: targetState.date))."
-                    )
-
-                    VStack(spacing: 10) {
-                        ForEach(movableWorkouts) { sourceState in
-                            MoveWorkoutHereRow(sourceState: sourceState) {
-                                if let workout = sourceState.workout {
-                                    appModel.moveWorkout(workout, toWeekdayIndex: targetState.weekdayIndex)
-                                    selectedDayID = targetState.id
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        )
-    }
-
     private func cardioExtras(for workout: WorkoutDay?, state: WeekdayWorkoutState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(
@@ -303,22 +247,6 @@ struct WorkoutPlanView: View {
 
     private func canAddExtra(to state: WeekdayWorkoutState) -> Bool {
         Date() < state.deadline && state.status != .completed && state.status != .missed
-    }
-
-    private func states(inWeek weekNumber: Int) -> [WeekdayWorkoutState] {
-        appModel.trainingBlockDayStates
-            .filter { $0.weekNumber == weekNumber }
-            .sorted { $0.weekdayIndex < $1.weekdayIndex }
-    }
-
-    private func canMoveWorkout(from sourceState: WeekdayWorkoutState, to targetState: WeekdayWorkoutState) -> Bool {
-        guard sourceState.weekNumber == targetState.weekNumber,
-              sourceState.weekdayIndex != targetState.weekdayIndex,
-              sourceState.workout != nil else {
-            return false
-        }
-
-        return true
     }
 
     private func statusColor(for status: WeekdayWorkoutStatus) -> Color {
@@ -625,75 +553,218 @@ private struct WeeklyWorkoutScheduleView: View {
     var states: [WeekdayWorkoutState]
     var selectedDayID: WeekdayWorkoutState.ID?
     var onSelect: (WeekdayWorkoutState) -> Void
+    var onMove: (WorkoutDay, WeekdayWorkoutState) -> Void
+
+    @State private var targetedDayID: WeekdayWorkoutState.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Training Block Schedule")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(CoachTheme.primaryText)
+            SectionHeader(
+                title: "Training Block Schedule",
+                subtitle: "Drag the handle to reorder workouts inside the same week."
+            )
 
             VStack(spacing: 10) {
                 ForEach(states) { state in
-                    Button {
-                        onSelect(state)
-                    } label: {
-                        ScheduleDayRow(state: state, isSelected: selectedDayID == state.id)
-                    }
-                    .buttonStyle(.plain)
+                    scheduleRow(for: state)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func scheduleRow(for state: WeekdayWorkoutState) -> some View {
+        if let workout = state.workout {
+            ScheduleDayRow(
+                state: state,
+                isSelected: selectedDayID == state.id,
+                isDropTargeted: targetedDayID == state.id,
+                onSelect: { onSelect(state) }
+            )
+            .onDrag {
+                NSItemProvider(object: dragPayload(for: workout) as NSString)
+            }
+            .onDrop(
+                of: [UTType.text],
+                isTargeted: dropTargetBinding(for: state),
+                perform: { providers in handleDrop(providers, onto: state) }
+            )
+        } else {
+            ScheduleDayRow(
+                state: state,
+                isSelected: selectedDayID == state.id,
+                isDropTargeted: targetedDayID == state.id,
+                onSelect: { onSelect(state) }
+            )
+            .onDrop(
+                of: [UTType.text],
+                isTargeted: dropTargetBinding(for: state),
+                perform: { providers in handleDrop(providers, onto: state) }
+            )
+        }
+    }
+
+    private func dragPayload(for workout: WorkoutDay) -> String {
+        "\(workout.weekNumber)|\(workout.id.uuidString)"
+    }
+
+    private func dropTargetBinding(for state: WeekdayWorkoutState) -> Binding<Bool> {
+        Binding(
+            get: { targetedDayID == state.id },
+            set: { isTargeted in
+                targetedDayID = isTargeted ? state.id : nil
+            }
+        )
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider], onto targetState: WeekdayWorkoutState) -> Bool {
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.text.identifier) }) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { item, _ in
+            guard let payload = payloadString(from: item),
+                  let workout = workout(from: payload, targetWeekNumber: targetState.weekNumber) else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                onMove(workout, targetState)
+                targetedDayID = nil
+            }
+        }
+
+        return true
+    }
+
+    private func payloadString(from item: NSSecureCoding?) -> String? {
+        if let string = item as? String {
+            return string
+        }
+
+        if let string = item as? NSString {
+            return String(string)
+        }
+
+        if let data = item as? Data {
+            return String(data: data, encoding: .utf8)
+        }
+
+        return nil
+    }
+
+    private func workout(from payload: String, targetWeekNumber: Int) -> WorkoutDay? {
+        let parts = payload.split(separator: "|")
+        guard parts.count == 2,
+              let weekNumber = Int(parts[0]),
+              weekNumber == targetWeekNumber,
+              let workoutID = UUID(uuidString: String(parts[1])) else {
+            return nil
+        }
+
+        return states
+            .compactMap(\.workout)
+            .first { $0.id == workoutID && $0.weekNumber == targetWeekNumber }
     }
 }
 
 private struct ScheduleDayRow: View {
     var state: WeekdayWorkoutState
     var isSelected: Bool
+    var isDropTargeted: Bool
+    var onSelect: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(spacing: 3) {
-                Text(weekdayShort)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(CoachTheme.secondaryText)
-                Text(dayNumber)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(CoachTheme.primaryText)
-                    .monospacedDigit()
+            dateColumn
+
+            Button(action: onSelect) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(state.workout?.title ?? "Rest Day")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(CoachTheme.primaryText)
+                            .lineLimit(1)
+
+                        Text(subtitle)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(CoachTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Text(statusTitle)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(statusColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(statusColor.opacity(0.14))
+                        .clipShape(Capsule())
+
+                    if state.workout != nil {
+                        dragHandle
+                    }
+                }
+                .padding(12)
+                .frame(minHeight: 62)
+                .background(rowBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(borderColor, lineWidth: isSelected || isDropTargeted ? 1.5 : 1)
+                )
             }
-            .frame(width: 46, height: 54)
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var dateColumn: some View {
+        VStack(spacing: 3) {
+            Text(weekdayShort)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(CoachTheme.secondaryText)
+            Text(dayNumber)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(CoachTheme.primaryText)
+                .monospacedDigit()
+        }
+        .frame(width: 46, height: 62)
+        .background(statusColor.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var dragHandle: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.headline.weight(.bold))
+            .foregroundStyle(CoachTheme.secondaryText)
+            .frame(width: 38, height: 38)
             .background(statusColor.opacity(0.14))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(CoachTheme.stroke, lineWidth: 1)
+            )
+    }
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(state.workout?.title ?? "Rest Day")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(CoachTheme.primaryText)
-                    .lineLimit(1)
-
-                Text(subtitle)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(CoachTheme.secondaryText)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Text(statusTitle)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(statusColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(statusColor.opacity(0.14))
-                .clipShape(Capsule())
+    private var rowBackground: Color {
+        if isDropTargeted {
+            return CoachTheme.accentBlue.opacity(0.24)
         }
-        .padding(12)
-        .background(CoachTheme.surface.opacity(isSelected ? 1 : 0.78))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isSelected ? statusColor.opacity(0.62) : CoachTheme.stroke, lineWidth: isSelected ? 1.4 : 1)
-        )
+
+        return CoachTheme.surface.opacity(isSelected ? 1 : 0.78)
+    }
+
+    private var borderColor: Color {
+        if isDropTargeted {
+            return CoachTheme.accentBlue.opacity(0.82)
+        }
+
+        if isSelected {
+            return statusColor.opacity(0.62)
+        }
+
+        return CoachTheme.stroke
     }
 
     private var weekdayShort: String {
@@ -747,137 +818,6 @@ private struct ScheduleDayRow: View {
         case .rest:
             return CoachTheme.tertiaryText
         }
-    }
-}
-
-private struct MoveDayButton: View {
-    var state: WeekdayWorkoutState
-    var isCurrentDay: Bool
-    var canMove: Bool
-    var onMove: () -> Void
-
-    var body: some View {
-        Button(action: onMove) {
-            VStack(spacing: 6) {
-                Text(weekdayShort)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(CoachTheme.secondaryText)
-                Text(dayNumber)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(CoachTheme.primaryText)
-                    .monospacedDigit()
-                Text(actionTitle)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(isCurrentDay ? CoachTheme.accentMint : statusColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 76)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(backgroundColor)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isCurrentDay ? CoachTheme.accentMint.opacity(0.55) : statusColor.opacity(canMove ? 0.42 : 0.16), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(!canMove)
-        .opacity(isCurrentDay || canMove ? 1 : 0.44)
-    }
-
-    private var weekdayShort: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        return formatter.string(from: state.date)
-    }
-
-    private var dayNumber: String {
-        "\(Calendar.current.component(.day, from: state.date))"
-    }
-
-    private var actionTitle: String {
-        if isCurrentDay {
-            return "Current"
-        }
-        return state.workout == nil ? "Move" : "Swap"
-    }
-
-    private var backgroundColor: Color {
-        if isCurrentDay {
-            return CoachTheme.accentMint.opacity(0.14)
-        }
-        return CoachTheme.surfaceStrong.opacity(canMove ? 0.72 : 0.36)
-    }
-
-    private var statusColor: Color {
-        switch state.status {
-        case .completed:
-            return CoachTheme.accentMint
-        case .inProgress:
-            return CoachTheme.accentPurple
-        case .missed, .incomplete:
-            return CoachTheme.accentCoral
-        case .upcoming:
-            return CoachTheme.accentGold
-        case .available:
-            return CoachTheme.accentBlue
-        case .rest:
-            return CoachTheme.secondaryText
-        }
-    }
-}
-
-private struct MoveWorkoutHereRow: View {
-    var sourceState: WeekdayWorkoutState
-    var onMove: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(CoachTheme.accentBlue)
-                .frame(width: 42, height: 42)
-                .background(CoachTheme.accentBlue.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(sourceState.workout?.title ?? "Workout")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(CoachTheme.primaryText)
-                    .lineLimit(1)
-                Text("From \(weekdayName)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(CoachTheme.secondaryText)
-            }
-
-            Spacer()
-
-            Button(action: onMove) {
-                Text("Move")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 58, height: 34)
-                    .background(CoachTheme.accentBlue)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(12)
-        .background(CoachTheme.surface.opacity(0.96))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(CoachTheme.stroke, lineWidth: 1)
-        )
-    }
-
-    private var weekdayName: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        return formatter.string(from: sourceState.date)
     }
 }
 
