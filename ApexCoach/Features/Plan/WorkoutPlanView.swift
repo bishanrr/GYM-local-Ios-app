@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct WorkoutPlanView: View {
     @EnvironmentObject private var appModel: AppViewModel
@@ -17,6 +18,9 @@ struct WorkoutPlanView: View {
                             selectedDayID: selectedState?.id
                         ) { state in
                             selectedDayID = state.id
+                        } onMove: { workout, targetState in
+                            appModel.moveWorkout(workout, toWeekdayIndex: targetState.weekdayIndex)
+                            selectedDayID = targetState.id
                         }
                         WeeklyWorkoutScheduleView(
                             states: appModel.trainingBlockDayStates,
@@ -314,14 +318,6 @@ struct WorkoutPlanView: View {
             return false
         }
 
-        if sourceState.status == .completed || sourceState.status == .missed {
-            return false
-        }
-
-        if targetState.status == .completed || targetState.status == .missed || targetState.status == .inProgress {
-            return false
-        }
-
         return true
     }
 
@@ -359,6 +355,9 @@ private struct ScheduleCalendarView: View {
     var states: [WeekdayWorkoutState]
     var selectedDayID: WeekdayWorkoutState.ID?
     var onSelect: (WeekdayWorkoutState) -> Void
+    var onMove: (WorkoutDay, WeekdayWorkoutState) -> Void
+
+    @State private var targetedDayID: WeekdayWorkoutState.ID?
 
     private var calendar: Calendar { Calendar.current }
     private var monthDate: Date { states.first?.date ?? Date() }
@@ -383,22 +382,13 @@ private struct ScheduleCalendarView: View {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
                     ForEach(calendarDays, id: \.self) { date in
                         if let state = state(for: date) {
-                            Button {
-                                onSelect(state)
-                            } label: {
-                                CalendarDayCell(
-                                    day: calendar.component(.day, from: date),
-                                    isCurrentMonth: calendar.isDate(date, equalTo: monthDate, toGranularity: .month),
-                                    isSelected: selectedDayID == state.id,
-                                    status: state.status
-                                )
-                            }
-                            .buttonStyle(.plain)
+                            calendarButton(for: state, date: date)
                         } else {
                             CalendarDayCell(
                                 day: calendar.component(.day, from: date),
                                 isCurrentMonth: calendar.isDate(date, equalTo: monthDate, toGranularity: .month),
                                 isSelected: false,
+                                isDropTargeted: false,
                                 status: nil
                             )
                         }
@@ -439,12 +429,113 @@ private struct ScheduleCalendarView: View {
     private func state(for date: Date) -> WeekdayWorkoutState? {
         states.first { calendar.isDate($0.date, inSameDayAs: date) }
     }
+
+    @ViewBuilder
+    private func calendarButton(for state: WeekdayWorkoutState, date: Date) -> some View {
+        if let workout = state.workout {
+            baseCalendarButton(for: state, date: date)
+                .onDrag {
+                    NSItemProvider(object: dragPayload(for: workout) as NSString)
+                }
+                .onDrop(
+                    of: [UTType.text],
+                    isTargeted: dropTargetBinding(for: state),
+                    perform: { providers in handleDrop(providers, onto: state) }
+                )
+        } else {
+            baseCalendarButton(for: state, date: date)
+                .onDrop(
+                    of: [UTType.text],
+                    isTargeted: dropTargetBinding(for: state),
+                    perform: { providers in handleDrop(providers, onto: state) }
+                )
+        }
+    }
+
+    private func baseCalendarButton(for state: WeekdayWorkoutState, date: Date) -> some View {
+        Button {
+            onSelect(state)
+        } label: {
+            CalendarDayCell(
+                day: calendar.component(.day, from: date),
+                isCurrentMonth: calendar.isDate(date, equalTo: monthDate, toGranularity: .month),
+                isSelected: selectedDayID == state.id,
+                isDropTargeted: targetedDayID == state.id,
+                status: state.status
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func dragPayload(for workout: WorkoutDay) -> String {
+        "\(workout.weekNumber)|\(workout.id.uuidString)"
+    }
+
+    private func dropTargetBinding(for state: WeekdayWorkoutState) -> Binding<Bool> {
+        Binding(
+            get: { targetedDayID == state.id },
+            set: { isTargeted in
+                targetedDayID = isTargeted ? state.id : nil
+            }
+        )
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider], onto targetState: WeekdayWorkoutState) -> Bool {
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.text.identifier) }) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { item, _ in
+            guard let payload = payloadString(from: item),
+                  let workout = workout(from: payload, targetWeekNumber: targetState.weekNumber) else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                onMove(workout, targetState)
+                targetedDayID = nil
+            }
+        }
+
+        return true
+    }
+
+    private func payloadString(from item: NSSecureCoding?) -> String? {
+        if let string = item as? String {
+            return string
+        }
+
+        if let string = item as? NSString {
+            return String(string)
+        }
+
+        if let data = item as? Data {
+            return String(data: data, encoding: .utf8)
+        }
+
+        return nil
+    }
+
+    private func workout(from payload: String, targetWeekNumber: Int) -> WorkoutDay? {
+        let parts = payload.split(separator: "|")
+        guard parts.count == 2,
+              let weekNumber = Int(parts[0]),
+              weekNumber == targetWeekNumber,
+              let workoutID = UUID(uuidString: String(parts[1])) else {
+            return nil
+        }
+
+        return states
+            .compactMap(\.workout)
+            .first { $0.id == workoutID && $0.weekNumber == targetWeekNumber }
+    }
 }
 
 private struct CalendarDayCell: View {
     var day: Int
     var isCurrentMonth: Bool
     var isSelected: Bool
+    var isDropTargeted: Bool
     var status: WeekdayWorkoutStatus?
 
     var body: some View {
@@ -463,12 +554,36 @@ private struct CalendarDayCell: View {
         .frame(height: 46)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isSelected ? statusColor.opacity(0.22) : CoachTheme.surfaceStrong.opacity(status == nil ? 0.18 : 0.52))
+                .fill(backgroundColor)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isSelected ? statusColor.opacity(0.7) : CoachTheme.stroke, lineWidth: isSelected ? 1.4 : 1)
+                .stroke(borderColor, lineWidth: isDropTargeted || isSelected ? 1.6 : 1)
         )
+    }
+
+    private var backgroundColor: Color {
+        if isDropTargeted {
+            return CoachTheme.accentBlue.opacity(0.26)
+        }
+
+        if isSelected {
+            return statusColor.opacity(0.22)
+        }
+
+        return CoachTheme.surfaceStrong.opacity(status == nil ? 0.18 : 0.52)
+    }
+
+    private var borderColor: Color {
+        if isDropTargeted {
+            return CoachTheme.accentBlue.opacity(0.84)
+        }
+
+        if isSelected {
+            return statusColor.opacity(0.7)
+        }
+
+        return CoachTheme.stroke
     }
 
     private var statusColor: Color {
