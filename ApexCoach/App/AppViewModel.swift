@@ -162,6 +162,32 @@ final class AppViewModel: ObservableObject {
         persist()
     }
 
+    func addExtraExercise(_ exercise: Exercise, to day: WorkoutDay) {
+        guard var plan = snapshot.activePlan else { return }
+
+        for weekIndex in plan.weeks.indices {
+            guard let dayIndex = plan.weeks[weekIndex].days.firstIndex(where: { $0.id == day.id }) else {
+                continue
+            }
+
+            var updatedDay = plan.weeks[weekIndex].days[dayIndex]
+            guard !updatedDay.exercises.contains(where: { $0.name == exercise.name }) else { return }
+
+            if let stretchingIndex = updatedDay.exercises.firstIndex(where: { $0.phase == .stretching }) {
+                updatedDay.exercises.insert(exercise, at: stretchingIndex)
+            } else {
+                updatedDay.exercises.append(exercise)
+            }
+
+            updatedDay.estimatedDurationMinutes += max(1, Int(exercise.workDuration / 60))
+            plan.weeks[weekIndex].days[dayIndex] = updatedDay
+            snapshot.activePlan = plan
+            persist()
+            HapticEngine.notify(.success)
+            return
+        }
+    }
+
     func completeOnboarding(with profile: UserProfile) async {
         do {
             let plan = try await generator.generatePlan(userProfile: profile)

@@ -87,12 +87,14 @@ struct WorkoutPlanView: View {
         VStack(alignment: .leading, spacing: 16) {
             SelectedWorkoutHeader(workout: workout, state: state)
 
-            CoachSegmentedControl(items: ["Exercises", "Details"], selection: $selectedTab)
+            CoachSegmentedControl(items: ["Exercises", "Details", "Extras"], selection: $selectedTab)
 
             if selectedTab == "Exercises" {
                 exerciseList(for: workout)
-            } else {
+            } else if selectedTab == "Details" {
                 details(for: workout)
+            } else {
+                cardioExtras(for: workout, state: state)
             }
 
             if appModel.canStartWorkout(state) {
@@ -206,6 +208,27 @@ struct WorkoutPlanView: View {
                         MuscleDiagramView(primaryMuscles: workout.muscleFocus, secondaryMuscles: workout.exercises.flatMap(\.secondaryMuscles), viewMode: .back)
                     }
                     .frame(maxHeight: 300)
+                }
+            }
+        }
+    }
+
+    private func cardioExtras(for workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(
+                title: "Cardio Extras",
+                subtitle: "Add a timed finisher to \(weekdayName(for: state.date))."
+            )
+
+            VStack(spacing: 10) {
+                ForEach(CardioExtraOption.library) { option in
+                    CardioExtraCard(
+                        option: option,
+                        isAdded: workout.exercises.contains { $0.name == option.exerciseName },
+                        canAdd: appModel.canStartWorkout(state)
+                    ) {
+                        appModel.addExtraExercise(option.exercise(), to: workout)
+                    }
                 }
             }
         }
@@ -604,6 +627,166 @@ private struct SelectedWorkoutHeader: View {
         case .rest:
             return CoachTheme.tertiaryText
         }
+    }
+}
+
+private struct CardioExtraOption: Identifiable {
+    var title: String
+    var minutes: Int
+    var subtitle: String
+    var systemImage: String
+    var primaryMuscles: [MuscleGroup]
+    var secondaryMuscles: [MuscleGroup]
+    var equipment: [EquipmentType]
+    var difficulty: DifficultyLevel
+
+    var id: String { exerciseName }
+    var exerciseName: String { "\(title) \(minutes) min" }
+
+    static let library: [CardioExtraOption] = [
+        CardioExtraOption(
+            title: "Incline Walk",
+            minutes: 20,
+            subtitle: "Low impact fat-loss finisher",
+            systemImage: "figure.walk",
+            primaryMuscles: [.calves, .glutes],
+            secondaryMuscles: [.quads, .core],
+            equipment: [.bodyweight, .machines, .fullGym],
+            difficulty: .easy
+        ),
+        CardioExtraOption(
+            title: "Zone 2 Bike",
+            minutes: 30,
+            subtitle: "Steady endurance builder",
+            systemImage: "figure.indoor.cycle",
+            primaryMuscles: [.quads, .calves],
+            secondaryMuscles: [.glutes, .core],
+            equipment: [.machines, .fullGym],
+            difficulty: .moderate
+        ),
+        CardioExtraOption(
+            title: "Row Intervals",
+            minutes: 20,
+            subtitle: "Full-body conditioning bursts",
+            systemImage: "figure.rower",
+            primaryMuscles: [.back, .quads],
+            secondaryMuscles: [.core, .biceps, .glutes],
+            equipment: [.machines, .fullGym],
+            difficulty: .hard
+        ),
+        CardioExtraOption(
+            title: "Elliptical Cruise",
+            minutes: 45,
+            subtitle: "Joint-friendly aerobic work",
+            systemImage: "figure.elliptical",
+            primaryMuscles: [.quads, .glutes],
+            secondaryMuscles: [.calves, .core],
+            equipment: [.machines, .fullGym],
+            difficulty: .moderate
+        ),
+        CardioExtraOption(
+            title: "Treadmill Run",
+            minutes: 30,
+            subtitle: "Classic conditioning session",
+            systemImage: "figure.run",
+            primaryMuscles: [.quads, .hamstrings, .calves],
+            secondaryMuscles: [.glutes, .core],
+            equipment: [.bodyweight, .machines, .fullGym],
+            difficulty: .hard
+        ),
+        CardioExtraOption(
+            title: "Jump Rope Intervals",
+            minutes: 20,
+            subtitle: "Fast footwork and cardio pop",
+            systemImage: "figure.jumprope",
+            primaryMuscles: [.calves, .core],
+            secondaryMuscles: [.shoulders, .quads],
+            equipment: [.bodyweight],
+            difficulty: .hard
+        )
+    ]
+
+    func exercise() -> Exercise {
+        Exercise(
+            name: exerciseName,
+            primaryMuscles: primaryMuscles,
+            secondaryMuscles: secondaryMuscles,
+            instructions: [
+                "Set a sustainable pace for the full timed block.",
+                "Keep breathing controlled and posture tall.",
+                "Finish with two easy minutes if your heart rate is high."
+            ],
+            tips: [
+                "Treat this as an add-on, not a max effort test.",
+                "Stay smooth enough that form does not break down."
+            ],
+            safetyNotes: [
+                "Stop if you feel chest pain, dizziness, or sharp joint pain.",
+                "Reduce speed or resistance if you cannot control breathing."
+            ],
+            sets: 1,
+            targetReps: RepRange(lowerBound: 1, upperBound: 1),
+            suggestedWeight: nil,
+            restDuration: 0,
+            workDuration: TimeInterval(minutes * 60),
+            equipment: equipment,
+            difficulty: difficulty,
+            phase: .main
+        )
+    }
+}
+
+private struct CardioExtraCard: View {
+    var option: CardioExtraOption
+    var isAdded: Bool
+    var canAdd: Bool
+    var onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(CoachTheme.accentBlue.opacity(0.14))
+                Image(systemName: option.systemImage)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(CoachTheme.accentBlue)
+            }
+            .frame(width: 58, height: 58)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(option.title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                    .lineLimit(1)
+                Text("\(option.minutes) min • \(option.subtitle)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(CoachTheme.secondaryText)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            Button {
+                onAdd()
+            } label: {
+                Text(isAdded ? "Added" : "Add")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(isAdded ? CoachTheme.accentMint : .white)
+                    .frame(width: 58, height: 34)
+                    .background(isAdded ? CoachTheme.accentMint.opacity(0.12) : CoachTheme.accentBlue)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isAdded || !canAdd)
+            .opacity(canAdd ? 1 : 0.44)
+        }
+        .padding(12)
+        .background(CoachTheme.surface.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isAdded ? CoachTheme.accentMint.opacity(0.35) : CoachTheme.stroke, lineWidth: 1)
+        )
     }
 }
 
