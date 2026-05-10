@@ -6,6 +6,7 @@ struct WorkoutPlanView: View {
     @State private var selectedTab = "Exercises"
     @State private var activeWorkout: PlanWorkoutLaunch?
     @State private var selectedDayID: WeekdayWorkoutState.ID?
+    @State private var replacementContext: ExerciseReplacementContext?
 
     var body: some View {
         NavigationStack {
@@ -56,6 +57,17 @@ struct WorkoutPlanView: View {
         .coachFullScreenCover(item: $activeWorkout) { launch in
             ActiveWorkoutView(workout: launch.workout, savedProgress: launch.savedProgress)
                 .environmentObject(appModel)
+        }
+        .sheet(item: $replacementContext) { context in
+            ExerciseReplacementPickerView(
+                context: context,
+                options: appModel.replacementOptions(for: context.exercise, in: context.workout)
+            ) { replacement in
+                appModel.replaceExercise(context.exercise, in: context.workout, with: replacement)
+                replacementContext = nil
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -167,18 +179,18 @@ struct WorkoutPlanView: View {
     private func exerciseList(for workout: WorkoutDay) -> some View {
         VStack(spacing: 14) {
             if !workout.warmUpExercises.isEmpty {
-                section(title: "Warm Up", exercises: workout.warmUpExercises)
+                section(title: "Warm Up", exercises: workout.warmUpExercises, workout: workout)
             }
 
-            section(title: "Workout", exercises: workout.mainExercises)
+            section(title: "Workout", exercises: workout.mainExercises, workout: workout)
 
             if !workout.stretchingExercises.isEmpty {
-                section(title: "Stretching", exercises: workout.stretchingExercises)
+                section(title: "Stretching", exercises: workout.stretchingExercises, workout: workout)
             }
         }
     }
 
-    private func section(title: String, exercises: [Exercise]) -> some View {
+    private func section(title: String, exercises: [Exercise], workout: WorkoutDay) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(.caption.weight(.bold))
@@ -187,12 +199,9 @@ struct WorkoutPlanView: View {
 
             VStack(spacing: 10) {
                 ForEach(exercises) { exercise in
-                    NavigationLink {
-                        ExerciseDetailView(exercise: exercise)
-                    } label: {
-                        ExerciseListCard(exercise: exercise)
+                    ExerciseListCard(exercise: exercise) {
+                        replacementContext = ExerciseReplacementContext(workout: workout, exercise: exercise)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -277,6 +286,12 @@ private struct PlanWorkoutLaunch: Identifiable {
     let id = UUID()
     var workout: WorkoutDay
     var savedProgress: SavedWorkoutProgress?
+}
+
+private struct ExerciseReplacementContext: Identifiable {
+    let id = UUID()
+    var workout: WorkoutDay
+    var exercise: Exercise
 }
 
 private struct ScheduleCalendarView: View {
@@ -1067,31 +1082,179 @@ private struct CardioExtraCard: View {
     }
 }
 
+private struct ExerciseReplacementPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var context: ExerciseReplacementContext
+    var options: [Exercise]
+    var onSelect: (Exercise) -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    PremiumCard {
+                        HStack(spacing: 14) {
+                            ExerciseArtworkView(exercise: context.exercise)
+                                .frame(width: 72, height: 72)
+
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text("Replace Exercise")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(CoachTheme.secondaryText)
+                                    .textCase(.uppercase)
+                                Text(context.exercise.name)
+                                    .font(.title3.weight(.bold))
+                                    .foregroundStyle(CoachTheme.primaryText)
+                                    .lineLimit(2)
+                                Text(muscleSummary(for: context.exercise))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(CoachTheme.secondaryText)
+                                    .lineLimit(2)
+                            }
+
+                            Spacer()
+                        }
+                    }
+
+                    if options.isEmpty {
+                        EmptyStateView(
+                            title: "No local match",
+                            subtitle: "No exercise in the local library matches this muscle activation yet.",
+                            systemImage: "figure.strengthtraining.traditional"
+                        )
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(options) { option in
+                                ReplacementOptionCard(exercise: option) {
+                                    onSelect(option)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(CoachTheme.background)
+            .navigationTitle("")
+            .coachInlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(CoachTheme.primaryText)
+                    }
+                }
+            }
+        }
+    }
+
+    private func muscleSummary(for exercise: Exercise) -> String {
+        let primary = exercise.primaryMuscles.map(\.rawValue).joined(separator: " • ")
+        let secondary = exercise.secondaryMuscles.map(\.rawValue).joined(separator: " • ")
+        return secondary.isEmpty ? primary : "\(primary) + \(secondary)"
+    }
+}
+
+private struct ReplacementOptionCard: View {
+    var exercise: Exercise
+    var onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 14) {
+                ExerciseArtworkView(exercise: exercise)
+                    .frame(width: 62, height: 62)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(exercise.name)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(CoachTheme.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text(muscleSummary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Text("Replace")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 74, height: 36)
+                    .background(CoachTheme.accentBlue)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .padding(12)
+            .background(CoachTheme.surface.opacity(0.96))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(CoachTheme.stroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var muscleSummary: String {
+        let primary = exercise.primaryMuscles.map(\.rawValue).joined(separator: " • ")
+        let secondary = exercise.secondaryMuscles.map(\.rawValue).joined(separator: " • ")
+        return secondary.isEmpty ? primary : "\(primary) + \(secondary)"
+    }
+}
+
 private struct ExerciseListCard: View {
     var exercise: Exercise
+    var onReplace: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
-            ExerciseArtworkView(exercise: exercise)
-                .frame(width: 64, height: 64)
+            NavigationLink {
+                ExerciseDetailView(exercise: exercise)
+            } label: {
+                HStack(spacing: 14) {
+                    ExerciseArtworkView(exercise: exercise)
+                        .frame(width: 64, height: 64)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(exercise.name)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(CoachTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(CoachTheme.secondaryText)
-                    .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(exercise.name)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(CoachTheme.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(CoachTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(CoachTheme.tertiaryText)
+                }
             }
+            .buttonStyle(.plain)
 
-            Spacer()
-
-            Image(systemName: "ellipsis")
-                .font(.headline)
-                .foregroundStyle(CoachTheme.tertiaryText)
+            Button(action: onReplace) {
+                VStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.bold))
+                    Text("Replace")
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(CoachTheme.accentBlue)
+                .frame(width: 70, height: 50)
+                .background(CoachTheme.accentBlue.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
         .padding(12)
         .background(CoachTheme.surface.opacity(0.96))

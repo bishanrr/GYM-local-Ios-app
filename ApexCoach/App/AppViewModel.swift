@@ -251,6 +251,52 @@ final class AppViewModel: ObservableObject {
         HapticEngine.notify(.success)
     }
 
+    func replacementOptions(for exercise: Exercise, in workout: WorkoutDay) -> [Exercise] {
+        let usedExerciseNames = Set(workout.exercises.map(\.name))
+        return ExerciseDatabase.all
+            .filter { template in
+                template.name != exercise.name
+                    && !usedExerciseNames.contains(template.name)
+                    && activationScore(for: template, matching: exercise) > 0
+            }
+            .sorted {
+                let leftScore = activationScore(for: $0, matching: exercise)
+                let rightScore = activationScore(for: $1, matching: exercise)
+                return leftScore == rightScore ? $0.name < $1.name : leftScore > rightScore
+            }
+            .prefix(8)
+            .map { replacementExercise(from: $0, matching: exercise) }
+    }
+
+    func replaceExercise(_ exercise: Exercise, in workout: WorkoutDay, with replacement: Exercise) {
+        guard var plan = snapshot.activePlan else { return }
+
+        for weekIndex in plan.weeks.indices {
+            guard let dayIndex = plan.weeks[weekIndex].days.firstIndex(where: { $0.id == workout.id }),
+                  let exerciseIndex = plan.weeks[weekIndex].days[dayIndex].exercises.firstIndex(where: { $0.id == exercise.id }) else {
+                continue
+            }
+
+            var updatedDay = plan.weeks[weekIndex].days[dayIndex]
+            var updatedReplacement = replacement
+            updatedReplacement.phase = exercise.phase
+            updatedReplacement.sets = exercise.sets
+            updatedReplacement.targetReps = exercise.targetReps
+            updatedReplacement.restDuration = exercise.restDuration
+            updatedReplacement.workDuration = exercise.workDuration
+            updatedReplacement.difficulty = exercise.difficulty
+
+            updatedDay.exercises[exerciseIndex] = updatedReplacement
+            updatedDay.muscleFocus = recalculatedMuscleFocus(for: updatedDay)
+            plan.weeks[weekIndex].days[dayIndex] = updatedDay
+            snapshot.activePlan = plan
+            snapshot.savedWorkoutProgress.removeAll { $0.workoutDayID == workout.id }
+            persist()
+            HapticEngine.notify(.success)
+            return
+        }
+    }
+
     func addProgressiveOverloadBlock() {
         guard var plan = snapshot.activePlan,
               let profile = snapshot.userProfile,
@@ -380,6 +426,55 @@ final class AppViewModel: ObservableObject {
     private func nextWeekdayIndex(after weekdayIndex: Int, fallback: Int) -> Int {
         let nextIndex = weekdayIndex + 1
         return nextIndex <= 7 ? nextIndex : fallback
+    }
+
+    private func activationScore(for template: ExerciseTemplate, matching exercise: Exercise) -> Int {
+        let templatePrimary = Set(template.primaryMuscles)
+        let templateSecondary = Set(template.secondaryMuscles)
+        let exercisePrimary = Set(exercise.primaryMuscles)
+        let exerciseSecondary = Set(exercise.secondaryMuscles)
+        let primaryOverlap = templatePrimary.intersection(exercisePrimary).count
+        let secondaryOverlap = templateSecondary.intersection(exerciseSecondary).count
+        guard primaryOverlap > 0 else { return 0 }
+
+        var score = primaryOverlap * 8 + secondaryOverlap * 3
+        if templatePrimary == exercisePrimary {
+            score += 10
+        }
+        if !templateSecondary.intersection(exercisePrimary).isEmpty {
+            score += 2
+        }
+        return score
+    }
+
+    private func replacementExercise(from template: ExerciseTemplate, matching exercise: Exercise) -> Exercise {
+        let isBodyweightOnly = template.equipment.contains(.bodyweight) && template.equipment.count == 1
+        return Exercise(
+            name: template.name,
+            primaryMuscles: template.primaryMuscles,
+            secondaryMuscles: template.secondaryMuscles,
+            instructions: template.instructions,
+            tips: template.tips,
+            safetyNotes: template.safetyNotes,
+            sets: exercise.sets,
+            targetReps: exercise.targetReps,
+            suggestedWeight: isBodyweightOnly ? nil : exercise.suggestedWeight,
+            restDuration: exercise.restDuration,
+            workDuration: exercise.workDuration,
+            equipment: template.equipment,
+            difficulty: exercise.difficulty,
+            phase: exercise.phase
+        )
+    }
+
+    private func recalculatedMuscleFocus(for workout: WorkoutDay) -> [MuscleGroup] {
+        let focusedMuscles = Set(
+            workout.mainExercises
+                .flatMap(\.primaryMuscles)
+                .filter { $0 != .fullBody }
+        )
+        let orderedMuscles = MuscleGroup.allCases.filter { focusedMuscles.contains($0) }
+        return orderedMuscles.isEmpty ? workout.muscleFocus : orderedMuscles
     }
 
     private func weekdayStates(for week: WorkoutWeek) -> [WeekdayWorkoutState] {
