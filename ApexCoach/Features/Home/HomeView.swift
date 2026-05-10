@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var appModel: AppViewModel
     @State private var activeWorkout: WorkoutDay?
+    @State private var selectedWeekdayIndex: Int?
 
     var body: some View {
         NavigationStack {
@@ -10,8 +11,8 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     greeting
                     weeklyProgressCard
-                    if let workout = appModel.todayWorkout {
-                        todayWorkoutCard(workout)
+                    if let dayState = selectedDayState {
+                        selectedDayCard(dayState)
                     } else {
                         EmptyStateView(
                             title: "No workout loaded",
@@ -29,10 +30,22 @@ struct HomeView: View {
             .coachInlineNavigationTitle()
             .background(CoachTheme.background)
         }
+        .onAppear {
+            selectedWeekdayIndex = selectedDayState?.weekdayIndex
+        }
         .coachFullScreenCover(item: $activeWorkout) { workout in
             ActiveWorkoutView(workout: workout)
                 .environmentObject(appModel)
         }
+    }
+
+    private var selectedDayState: WeekdayWorkoutState? {
+        let states = appModel.weeklyDayStates
+        if let selectedWeekdayIndex,
+           let selected = states.first(where: { $0.weekdayIndex == selectedWeekdayIndex }) {
+            return selected
+        }
+        return appModel.suggestedWeekdayState
     }
 
     private var greeting: some View {
@@ -86,7 +99,16 @@ struct HomeView: View {
         }
     }
 
-    private func todayWorkoutCard(_ workout: WorkoutDay) -> some View {
+    @ViewBuilder
+    private func selectedDayCard(_ state: WeekdayWorkoutState) -> some View {
+        if let workout = state.workout {
+            workoutCard(workout, state: state)
+        } else {
+            restDayCard(state)
+        }
+    }
+
+    private func workoutCard(_ workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
         ZStack(alignment: .bottomLeading) {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
@@ -104,9 +126,13 @@ struct HomeView: View {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("Today’s Workout")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(CoachTheme.secondaryText)
+                        HStack(spacing: 8) {
+                            Text("\(weekdayName(for: state.date)) Workout")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(CoachTheme.secondaryText)
+                            statusBadge(for: state.status)
+                        }
+                        .font(.caption.weight(.bold))
                         Text(workout.title)
                             .font(.title2.weight(.bold))
                             .foregroundStyle(CoachTheme.primaryText)
@@ -115,24 +141,42 @@ struct HomeView: View {
                             .font(.subheadline)
                             .foregroundStyle(CoachTheme.secondaryText)
                             .lineLimit(1)
+                        Text(statusDetail(for: state))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(statusColor(for: state.status))
+                            .lineLimit(1)
                     }
 
-                    Button {
-                        activeWorkout = workout
-                    } label: {
-                        HStack(spacing: 10) {
-                            Text("Start Workout")
-                                .font(.headline.weight(.semibold))
-                            Image(systemName: "play.circle.fill")
-                                .font(.title3)
+                    if appModel.canStartWorkout(state) {
+                        Button {
+                            activeWorkout = workout
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(actionTitle(for: state.status))
+                                    .font(.headline.weight(.semibold))
+                                Image(systemName: "play.circle.fill")
+                                    .font(.title3)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .frame(height: 52)
+                            .background(CoachTheme.accentGradient)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
-                        .foregroundStyle(.white)
+                        .buttonStyle(.plain)
+                    } else {
+                        HStack(spacing: 10) {
+                            Image(systemName: state.status == .completed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .font(.title3)
+                            Text(state.status == .completed ? "Completed" : "Missed")
+                                .font(.headline.weight(.semibold))
+                        }
+                        .foregroundStyle(statusColor(for: state.status))
                         .padding(.horizontal, 16)
                         .frame(height: 52)
-                        .background(CoachTheme.accentGradient)
+                        .background(statusColor(for: state.status).opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(16)
 
@@ -151,6 +195,37 @@ struct HomeView: View {
         .frame(height: 202)
     }
 
+    private func restDayCard(_ state: WeekdayWorkoutState) -> some View {
+        PremiumCard {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(CoachTheme.surfaceStrong)
+                        .frame(width: 64, height: 64)
+                    Image(systemName: "moon.stars.fill")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(CoachTheme.accentMint)
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: 8) {
+                        Text(weekdayName(for: state.date))
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(CoachTheme.secondaryText)
+                        statusBadge(for: .rest)
+                    }
+                    Text("Rest Day")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(CoachTheme.primaryText)
+                    Text("No workout is scheduled for \(shortDate(for: state.date)).")
+                        .font(.subheadline)
+                        .foregroundStyle(CoachTheme.secondaryText)
+                }
+                Spacer()
+            }
+        }
+    }
+
     private var thisWeekCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -164,9 +239,11 @@ struct HomeView: View {
             }
 
             WeekProgressStrip(
-                completedCount: appModel.completedWorkoutCountThisWeek,
-                totalCount: appModel.activeWeek?.days.count ?? 0
-            )
+                states: appModel.weeklyDayStates,
+                selectedDayIndex: selectedDayState?.weekdayIndex
+            ) { state in
+                selectedWeekdayIndex = state.weekdayIndex
+            }
         }
     }
 
@@ -186,5 +263,87 @@ struct HomeView: View {
                     .frame(width: 128)
             }
         }
+    }
+
+    private func actionTitle(for status: WeekdayWorkoutStatus) -> String {
+        switch status {
+        case .incomplete:
+            return "Retry Workout"
+        case .upcoming:
+            return "Start Early"
+        default:
+            return "Start Workout"
+        }
+    }
+
+    private func statusBadge(for status: WeekdayWorkoutStatus) -> some View {
+        Text(statusTitle(for: status))
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(statusColor(for: status))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(statusColor(for: status).opacity(0.14))
+            .clipShape(Capsule())
+    }
+
+    private func statusTitle(for status: WeekdayWorkoutStatus) -> String {
+        switch status {
+        case .completed:
+            return "Completed"
+        case .incomplete:
+            return "Incomplete"
+        case .missed:
+            return "Missed"
+        case .upcoming:
+            return "Upcoming"
+        case .available:
+            return "Due"
+        case .rest:
+            return "Rest"
+        }
+    }
+
+    private func statusDetail(for state: WeekdayWorkoutState) -> String {
+        switch state.status {
+        case .completed:
+            return "Logged locally"
+        case .incomplete:
+            return "Incomplete attempt. Finish by \(shortDate(for: state.deadline))."
+        case .missed:
+            return "Completion window closed \(shortDate(for: state.deadline))."
+        case .upcoming:
+            return "Scheduled for \(shortDate(for: state.date))."
+        case .available:
+            return "Complete by \(shortDate(for: state.deadline))."
+        case .rest:
+            return "Recovery day"
+        }
+    }
+
+    private func statusColor(for status: WeekdayWorkoutStatus) -> Color {
+        switch status {
+        case .completed:
+            return CoachTheme.accentMint
+        case .incomplete, .missed:
+            return CoachTheme.accentCoral
+        case .upcoming:
+            return CoachTheme.accentGold
+        case .available:
+            return CoachTheme.accentBlue
+        case .rest:
+            return CoachTheme.tertiaryText
+        }
+    }
+
+    private func weekdayName(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
+    private func shortDate(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
     }
 }

@@ -34,18 +34,54 @@ final class AppViewModel: ObservableObject {
     }
 
     var todayWorkout: WorkoutDay? {
-        guard let week = activeWeek else { return nil }
-        return week.days.first { !isWorkoutCompleted($0) } ?? week.days.first
+        suggestedWeekdayState?.workout
+            ?? activeWeek?.days.first { !isWorkoutCompleted($0) }
+            ?? activeWeek?.days.first
     }
 
     var weeklyProgress: Double {
         guard let week = activeWeek, !week.days.isEmpty else { return 0 }
-        let completed = week.days.filter { isWorkoutCompleted($0) }.count
+        let completed = weeklyDayStates.filter { $0.status == .completed }.count
         return Double(completed) / Double(week.days.count)
     }
 
     var completedWorkoutCountThisWeek: Int {
-        activeWeek?.days.filter { isWorkoutCompleted($0) }.count ?? 0
+        weeklyDayStates.filter { $0.status == .completed }.count
+    }
+
+    var weeklyDayStates: [WeekdayWorkoutState] {
+        guard let week = activeWeek else { return [] }
+
+        let calendar = Calendar.current
+        let weekStart = calendar.startOfDay(for: week.startDate)
+        let workoutsByIndex = Dictionary(uniqueKeysWithValues: week.days.map { ($0.dayIndex, $0) })
+
+        return (1...7).map { weekdayIndex in
+            let date = calendar.date(byAdding: .day, value: weekdayIndex - 1, to: weekStart) ?? weekStart
+            let deadline = calendar.date(byAdding: .day, value: 7, to: date) ?? date
+            let workout = workoutsByIndex[weekdayIndex]
+            return WeekdayWorkoutState(
+                weekdayIndex: weekdayIndex,
+                label: Self.weekdayLabel(for: date),
+                date: date,
+                deadline: deadline,
+                workout: workout,
+                status: status(for: workout, scheduledDate: date, deadline: deadline)
+            )
+        }
+    }
+
+    var suggestedWeekdayState: WeekdayWorkoutState? {
+        let states = weeklyDayStates
+        let calendar = Calendar.current
+
+        if let today = states.first(where: { calendar.isDateInToday($0.date) && $0.workout != nil }) {
+            return today
+        }
+
+        return states.first { $0.status == .available || $0.status == .incomplete }
+            ?? states.first { $0.workout != nil }
+            ?? states.first
     }
 
     var estimatedCaloriesForToday: Int {
@@ -95,6 +131,18 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func isWorkoutIncomplete(_ day: WorkoutDay) -> Bool {
+        guard !isWorkoutCompleted(day) else { return false }
+        return snapshot.workoutHistory.contains {
+            $0.workoutDayID == day.id && !$0.wasCompleted
+        }
+    }
+
+    func canStartWorkout(_ state: WeekdayWorkoutState) -> Bool {
+        guard state.workout != nil else { return false }
+        return state.status != .completed && state.status != .missed
+    }
+
     func completeOnboarding(with profile: UserProfile) async {
         do {
             let plan = try await generator.generatePlan(userProfile: profile)
@@ -119,7 +167,6 @@ final class AppViewModel: ObservableObject {
 
     func recordCompletedWorkout(_ session: WorkoutSession) {
         guard !snapshot.workoutHistory.contains(where: { $0.id == session.id }) else { return }
-        guard !session.completedExercises.isEmpty else { return }
 
         snapshot.workoutHistory.append(session)
         updatePersonalRecords(from: session)
@@ -156,6 +203,35 @@ final class AppViewModel: ObservableObject {
             errorMessage = "Local data could not be loaded, so a fresh offline profile is ready."
         }
         isBootstrapping = false
+    }
+
+    private func status(for workout: WorkoutDay?, scheduledDate: Date, deadline: Date) -> WeekdayWorkoutStatus {
+        guard let workout else { return .rest }
+
+        if isWorkoutCompleted(workout) {
+            return .completed
+        }
+
+        if Date() >= deadline {
+            return .missed
+        }
+
+        if isWorkoutIncomplete(workout) {
+            return .incomplete
+        }
+
+        if Date() < scheduledDate {
+            return .upcoming
+        }
+
+        return .available
+    }
+
+    private static func weekdayLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateFormat = "EEEEE"
+        return formatter.string(from: date)
     }
 
     private func persist() {

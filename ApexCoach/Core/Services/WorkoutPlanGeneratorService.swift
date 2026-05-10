@@ -6,7 +6,7 @@ protocol WorkoutPlanGenerating {
 
 struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
     func generatePlan(userProfile: UserProfile) async throws -> WorkoutPlan {
-        let week = generateWeek(number: 1, startDate: Date(), userProfile: userProfile)
+        let week = generateWeek(number: 1, startDate: Calendar.current.startOfDay(for: Date()), userProfile: userProfile)
         let title = "\(userProfile.goal.rawValue) Coach"
         let summary = "\(userProfile.preferredSplit.rawValue) split tuned for \(userProfile.trainingStyle.rawValue.lowercased()), \(userProfile.durationPreference.label) sessions, and local progressive overload."
 

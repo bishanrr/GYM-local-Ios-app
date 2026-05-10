@@ -149,3 +149,22 @@ struct AppSnapshot: Codable, Equatable {
         self.settings = settings
     }
 }
+
+enum WeekdayWorkoutStatus: String, Equatable {
+    case rest
+    case upcoming
+    case available
+    case completed
+    case incomplete
+    case missed
+}
+
+struct WeekdayWorkoutState: Identifiable, Equatable {
+    var id: Int { weekdayIndex }
+    var weekdayIndex: Int
+    var label: String
+    var date: Date
+    var deadline: Date
+    var workout: WorkoutDay?
+    var status: WeekdayWorkoutStatus
+}

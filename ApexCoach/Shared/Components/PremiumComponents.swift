@@ -266,27 +266,103 @@ struct CoachSegmentedControl: View {
 }
 
 struct WeekProgressStrip: View {
-    var completedCount: Int
-    var totalCount: Int
-    private let labels = ["M", "T", "W", "T", "F", "S", "S"]
+    var states: [WeekdayWorkoutState]
+    var selectedDayIndex: Int?
+    var onSelect: (WeekdayWorkoutState) -> Void
 
     var body: some View {
         HStack(spacing: 8) {
-            ForEach(labels.indices, id: \.self) { index in
-                VStack(spacing: 8) {
-                    Text(labels[index])
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(CoachTheme.secondaryText)
-                    Image(systemName: index < completedCount ? "checkmark" : "circle.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(index < completedCount ? .white : Color.white.opacity(0.20))
+            ForEach(states) { state in
+                Button {
+                    onSelect(state)
+                } label: {
+                    VStack(spacing: 6) {
+                        Text(state.label)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(CoachTheme.secondaryText)
+                        Text(dayNumber(for: state.date))
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(CoachTheme.primaryText)
+                        Image(systemName: icon(for: state.status))
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(foregroundColor(for: state.status))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 62)
+                    .background(background(for: state))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selectedDayIndex == state.weekdayIndex ? Color.white.opacity(0.34) : CoachTheme.stroke, lineWidth: selectedDayIndex == state.weekdayIndex ? 1.5 : 1)
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(index < totalCount ? (index < completedCount ? CoachTheme.accentBlue.opacity(0.9) : CoachTheme.surfaceStrong) : CoachTheme.surface.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .buttonStyle(.plain)
             }
         }
+    }
+
+    private func dayNumber(for date: Date) -> String {
+        let day = Calendar.current.component(.day, from: date)
+        return "\(day)"
+    }
+
+    private func icon(for status: WeekdayWorkoutStatus) -> String {
+        switch status {
+        case .completed:
+            return "checkmark"
+        case .incomplete:
+            return "exclamationmark"
+        case .missed:
+            return "xmark"
+        case .available:
+            return "circle.fill"
+        case .upcoming:
+            return "clock"
+        case .rest:
+            return "minus"
+        }
+    }
+
+    private func foregroundColor(for status: WeekdayWorkoutStatus) -> Color {
+        switch status {
+        case .completed:
+            return CoachTheme.accentMint
+        case .incomplete, .missed:
+            return CoachTheme.accentCoral
+        case .available:
+            return CoachTheme.accentBlue
+        case .upcoming:
+            return CoachTheme.accentGold
+        case .rest:
+            return Color.white.opacity(0.28)
+        }
+    }
+
+    private func background(for state: WeekdayWorkoutState) -> LinearGradient {
+        let isSelected = selectedDayIndex == state.weekdayIndex
+        let color: Color
+
+        switch state.status {
+        case .completed:
+            color = CoachTheme.accentMint
+        case .incomplete, .missed:
+            color = CoachTheme.accentCoral
+        case .available:
+            color = CoachTheme.accentBlue
+        case .upcoming:
+            color = CoachTheme.accentGold
+        case .rest:
+            color = CoachTheme.surfaceStrong
+        }
+
+        return LinearGradient(
+            colors: [
+                color.opacity(isSelected ? 0.34 : 0.16),
+                CoachTheme.surface.opacity(state.status == .rest ? 0.56 : 0.92)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }
 
