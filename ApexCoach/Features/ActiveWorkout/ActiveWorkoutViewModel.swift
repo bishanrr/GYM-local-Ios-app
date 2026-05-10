@@ -22,6 +22,15 @@ final class ActiveWorkoutViewModel: ObservableObject {
     var elapsedText: String { engine.elapsedSeconds.clockString }
     var phaseProgress: Double { engine.phaseProgress }
     var phaseDurationSeconds: TimeInterval { engine.phaseDurationSeconds }
+    var completedSetCount: Int { engine.completedSetCount }
+    var totalSetCount: Int { engine.totalSetCount }
+    var remainingSetCount: Int { engine.remainingSetCount }
+    var completedRepCount: Int { engine.completedRepCount }
+    var totalRepCount: Int { engine.totalRepCount }
+    var remainingRepCount: Int { engine.remainingRepCount }
+    var totalWorkoutTimeText: String { engine.totalWorkoutDurationSeconds.clockString }
+    var remainingWorkoutTimeText: String { engine.remainingWorkoutDurationSeconds.clockString }
+    var workoutProgress: Double { engine.workoutProgress }
 
     func start() {
         engine.start()
@@ -43,8 +52,8 @@ final class ActiveWorkoutViewModel: ObservableObject {
         engine.skipSet()
     }
 
-    func completeSet() {
-        engine.completeSet()
+    func completeSet(reps: Int, weight: Double?) {
+        engine.completeSet(reps: reps, weight: weight)
     }
 
     func recoverFromClock() {

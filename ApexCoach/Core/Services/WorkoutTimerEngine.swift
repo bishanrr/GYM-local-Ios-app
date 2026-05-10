@@ -76,6 +76,72 @@ final class WorkoutTimerEngine: ObservableObject {
         currentPhaseDuration
     }
 
+    var totalSetCount: Int {
+        workout.exercises.reduce(0) { $0 + $1.sets }
+    }
+
+    var completedSetCount: Int {
+        completedSets.values.reduce(0) { $0 + $1.count }
+    }
+
+    var remainingSetCount: Int {
+        max(totalSetCount - completedSetCount, 0)
+    }
+
+    var totalRepCount: Int {
+        workout.exercises.reduce(0) { $0 + ($1.sets * $1.targetReps.upperBound) }
+    }
+
+    var completedRepCount: Int {
+        completedSets.values.flatMap { $0 }.reduce(0) { $0 + $1.completedReps }
+    }
+
+    var remainingRepCount: Int {
+        max(totalRepCount - completedRepCount, 0)
+    }
+
+    var totalWorkoutDurationSeconds: TimeInterval {
+        workout.exercises.reduce(0) { total, exercise in
+            total + (Double(exercise.sets) * (exercise.workDuration + exercise.restDuration))
+        }
+    }
+
+    var remainingWorkoutDurationSeconds: TimeInterval {
+        guard mode != .finished else { return 0 }
+        guard !workout.exercises.isEmpty else { return 0 }
+        guard mode != .ready else { return totalWorkoutDurationSeconds }
+
+        let currentRemaining = TimeInterval(max(remainingSeconds, 0))
+        var future: TimeInterval = 0
+
+        let effectiveMode = mode == .paused ? (modeBeforePause ?? .work) : mode
+        switch effectiveMode {
+        case .work:
+            if let exercise = currentExercise {
+                future += exercise.restDuration
+                let remainingSetsInExercise = max(exercise.sets - currentSetIndex - 1, 0)
+                future += Double(remainingSetsInExercise) * (exercise.workDuration + exercise.restDuration)
+            }
+            future += remainingDurationForExercises(after: currentExerciseIndex)
+        case .rest:
+            if let exercise = currentExercise {
+                let remainingSetsInExercise = max(exercise.sets - currentSetIndex - 1, 0)
+                future += Double(remainingSetsInExercise) * (exercise.workDuration + exercise.restDuration)
+            }
+            future += remainingDurationForExercises(after: currentExerciseIndex)
+        case .paused, .ready, .finished:
+            break
+        }
+
+        return max(0, currentRemaining + future)
+    }
+
+    var workoutProgress: Double {
+        let total = totalWorkoutDurationSeconds
+        guard total > 0 else { return 0 }
+        return max(0, min(1, 1 - (remainingWorkoutDurationSeconds / total)))
+    }
+
     func start() {
         guard mode == .ready, let exercise = currentExercise else { return }
         let now = Date()
@@ -114,21 +180,21 @@ final class WorkoutTimerEngine: ObservableObject {
 
     func skipRest() {
         guard mode == .rest else { return }
-        completeCurrentPhase(anchorDate: Date(), setWasSuccessful: true)
+        completeCurrentPhase(anchorDate: Date(), setWasSuccessful: true, reps: nil, weight: nil)
         recoverFromClock()
         HapticEngine.impact(.medium)
     }
 
     func skipSet() {
         guard mode == .work else { return }
-        completeCurrentPhase(anchorDate: Date(), setWasSuccessful: false)
+        completeCurrentPhase(anchorDate: Date(), setWasSuccessful: false, reps: nil, weight: nil)
         recoverFromClock()
         HapticEngine.impact(.medium)
     }
 
-    func completeSet() {
+    func completeSet(reps: Int? = nil, weight: Double? = nil) {
         guard mode == .work else { return }
-        completeCurrentPhase(anchorDate: Date(), setWasSuccessful: true)
+        completeCurrentPhase(anchorDate: Date(), setWasSuccessful: true, reps: reps, weight: weight)
         recoverFromClock()
         HapticEngine.impact(.heavy)
     }
@@ -147,7 +213,7 @@ final class WorkoutTimerEngine: ObservableObject {
         let now = Date()
         var safetyCounter = 0
         while let end = phaseEndsAt, now >= end, safetyCounter < 100, mode == .work || mode == .rest {
-            completeCurrentPhase(anchorDate: end, setWasSuccessful: true)
+            completeCurrentPhase(anchorDate: end, setWasSuccessful: true, reps: nil, weight: nil)
             safetyCounter += 1
         }
 
@@ -176,7 +242,7 @@ final class WorkoutTimerEngine: ObservableObject {
         startTicker()
     }
 
-    private func completeCurrentPhase(anchorDate: Date, setWasSuccessful: Bool) {
+    private func completeCurrentPhase(anchorDate: Date, setWasSuccessful: Bool, reps: Int?, weight: Double?) {
         guard let exercise = currentExercise else {
             finish()
             return
@@ -184,7 +250,7 @@ final class WorkoutTimerEngine: ObservableObject {
 
         switch mode {
         case .work:
-            recordSet(for: exercise, successful: setWasSuccessful, completedAt: anchorDate)
+            recordSet(for: exercise, successful: setWasSuccessful, reps: reps, weight: weight, completedAt: anchorDate)
             if exercise.restDuration > 0 {
                 transition(to: .rest, duration: exercise.restDuration, anchorDate: anchorDate)
             } else {
@@ -216,22 +282,30 @@ final class WorkoutTimerEngine: ObservableObject {
         finish()
     }
 
-    private func recordSet(for exercise: Exercise, successful: Bool, completedAt: Date) {
+    private func recordSet(for exercise: Exercise, successful: Bool, reps: Int?, weight: Double?, completedAt: Date) {
         let setNumber = currentSetIndex + 1
         if completedSets[exercise.id, default: []].contains(where: { $0.setNumber == setNumber }) {
             return
         }
 
-        let reps = successful ? exercise.targetReps.upperBound : max(0, exercise.targetReps.lowerBound - 1)
+        let completedReps = max(0, reps ?? (successful ? exercise.targetReps.upperBound : max(0, exercise.targetReps.lowerBound - 1)))
         let set = CompletedSet(
             setNumber: setNumber,
             targetReps: exercise.targetReps,
-            completedReps: reps,
-            weight: exercise.suggestedWeight,
+            completedReps: completedReps,
+            weight: weight ?? exercise.suggestedWeight,
             wasSuccessful: successful,
             completedAt: completedAt
         )
         completedSets[exercise.id, default: []].append(set)
+    }
+
+    private func remainingDurationForExercises(after index: Int) -> TimeInterval {
+        let nextIndex = index + 1
+        guard workout.exercises.indices.contains(nextIndex) else { return 0 }
+        return workout.exercises[nextIndex...].reduce(0) { total, exercise in
+            total + (Double(exercise.sets) * (exercise.workDuration + exercise.restDuration))
+        }
     }
 
     private func finish() {

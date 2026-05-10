@@ -53,6 +53,7 @@ struct ActiveWorkoutView: View {
                     VStack(spacing: 18) {
                         hero(for: exercise)
                         activeTimerCard(for: exercise)
+                        WorkoutProgressOverview(viewModel: viewModel)
 
                         VStack(spacing: 12) {
                             ValueStepperCard(title: "Reps", value: $repsValue, range: 0...50)
@@ -60,7 +61,7 @@ struct ActiveWorkoutView: View {
                         }
 
                         PrimaryCoachButton(title: completeButtonTitle(for: exercise), systemImage: "checkmark") {
-                            viewModel.completeSet()
+                            viewModel.completeSet(reps: repsValue, weight: Double(weightValue))
                         }
 
                         restTimerRow(for: exercise)
@@ -160,10 +161,13 @@ struct ActiveWorkoutView: View {
                     .font(.subheadline)
                     .foregroundStyle(CoachTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Live \(viewModel.elapsedText)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(CoachTheme.accentBlue)
-                    .monospacedDigit()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Elapsed \(viewModel.elapsedText)")
+                    Text("Workout left \(viewModel.remainingWorkoutTimeText)")
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(CoachTheme.accentBlue)
+                .monospacedDigit()
             }
             Spacer(minLength: 0)
         }
@@ -362,6 +366,9 @@ private struct RestScreen: View {
             timer
             Spacer()
 
+            RestProgressSummary(viewModel: viewModel)
+                .padding(.horizontal, 20)
+
             VStack(alignment: .leading, spacing: 14) {
                 Text("Up Next")
                     .font(.headline.weight(.semibold))
@@ -426,6 +433,94 @@ private struct RestScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(height: 360)
+    }
+}
+
+private struct WorkoutProgressOverview: View {
+    @ObservedObject var viewModel: ActiveWorkoutViewModel
+
+    var body: some View {
+        PremiumCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Workout Progress")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(CoachTheme.primaryText)
+                    Spacer()
+                    Text("\(Int(viewModel.workoutProgress * 100))%")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(CoachTheme.accentMint)
+                }
+
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.10))
+                        Capsule()
+                            .fill(CoachTheme.accentGradient)
+                            .frame(width: proxy.size.width * viewModel.workoutProgress)
+                    }
+                }
+                .frame(height: 8)
+
+                VStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        WorkoutProgressTile(title: "Sets Done", value: "\(viewModel.completedSetCount)/\(viewModel.totalSetCount)", tint: CoachTheme.accentMint)
+                        WorkoutProgressTile(title: "Sets Left", value: "\(viewModel.remainingSetCount)", tint: CoachTheme.accentBlue)
+                    }
+                    HStack(spacing: 10) {
+                        WorkoutProgressTile(title: "Reps Done", value: "\(viewModel.completedRepCount)/\(viewModel.totalRepCount)", tint: CoachTheme.accentMint)
+                        WorkoutProgressTile(title: "Reps Left", value: "\(viewModel.remainingRepCount)", tint: CoachTheme.accentBlue)
+                    }
+                    HStack(spacing: 10) {
+                        WorkoutProgressTile(title: "Total Time", value: viewModel.totalWorkoutTimeText, tint: CoachTheme.accentGold)
+                        WorkoutProgressTile(title: "Time Left", value: viewModel.remainingWorkoutTimeText, tint: CoachTheme.accentPurple)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct RestProgressSummary: View {
+    @ObservedObject var viewModel: ActiveWorkoutViewModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            WorkoutProgressTile(title: "Sets", value: "\(viewModel.completedSetCount)/\(viewModel.totalSetCount)", tint: CoachTheme.accentMint)
+            WorkoutProgressTile(title: "Reps", value: "\(viewModel.completedRepCount)/\(viewModel.totalRepCount)", tint: CoachTheme.accentBlue)
+            WorkoutProgressTile(title: "Left", value: viewModel.remainingWorkoutTimeText, tint: CoachTheme.accentPurple)
+        }
+    }
+}
+
+private struct WorkoutProgressTile: View {
+    var title: String
+    var value: String
+    var tint: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(CoachTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+            Text(value)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(CoachTheme.primaryText)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 58)
+        .background(tint.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.22), lineWidth: 1)
+        )
     }
 }
 
