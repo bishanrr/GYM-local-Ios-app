@@ -2,7 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var appModel: AppViewModel
-    @State private var activeWorkout: WorkoutDay?
+    @State private var activeWorkout: WorkoutLaunch?
     @State private var selectedWeekdayIndex: Int?
 
     var body: some View {
@@ -33,8 +33,8 @@ struct HomeView: View {
         .onAppear {
             selectedWeekdayIndex = selectedDayState?.weekdayIndex
         }
-        .coachFullScreenCover(item: $activeWorkout) { workout in
-            ActiveWorkoutView(workout: workout)
+        .coachFullScreenCover(item: $activeWorkout) { launch in
+            ActiveWorkoutView(workout: launch.workout, savedProgress: launch.savedProgress)
                 .environmentObject(appModel)
         }
     }
@@ -109,7 +109,9 @@ struct HomeView: View {
     }
 
     private func workoutCard(_ workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
-        ZStack(alignment: .bottomLeading) {
+        let savedProgress = appModel.savedProgress(for: workout)
+
+        return ZStack(alignment: .bottomLeading) {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
                     LinearGradient(
@@ -148,22 +150,36 @@ struct HomeView: View {
                     }
 
                     if appModel.canStartWorkout(state) {
-                        Button {
-                            activeWorkout = workout
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(actionTitle(for: state.status))
-                                    .font(.headline.weight(.semibold))
-                                Image(systemName: "play.circle.fill")
-                                    .font(.title3)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button {
+                                activeWorkout = WorkoutLaunch(workout: workout, savedProgress: savedProgress)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text(actionTitle(for: state.status))
+                                        .font(.headline.weight(.semibold))
+                                    Image(systemName: "play.circle.fill")
+                                        .font(.title3)
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .frame(height: 52)
+                                .background(CoachTheme.accentGradient)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .frame(height: 52)
-                            .background(CoachTheme.accentGradient)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .buttonStyle(.plain)
+
+                            if savedProgress != nil {
+                                Button {
+                                    appModel.clearSavedProgress(for: workout)
+                                    activeWorkout = WorkoutLaunch(workout: workout, savedProgress: nil)
+                                } label: {
+                                    Label("Restart Workout", systemImage: "arrow.counterclockwise")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(CoachTheme.secondaryText)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .buttonStyle(.plain)
                     } else {
                         HStack(spacing: 10) {
                             Image(systemName: state.status == .completed ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -267,6 +283,8 @@ struct HomeView: View {
 
     private func actionTitle(for status: WeekdayWorkoutStatus) -> String {
         switch status {
+        case .inProgress:
+            return "Resume Workout"
         case .incomplete:
             return "Retry Workout"
         case .upcoming:
@@ -290,6 +308,8 @@ struct HomeView: View {
         switch status {
         case .completed:
             return "Completed"
+        case .inProgress:
+            return "In Progress"
         case .incomplete:
             return "Incomplete"
         case .missed:
@@ -307,6 +327,8 @@ struct HomeView: View {
         switch state.status {
         case .completed:
             return "Logged locally"
+        case .inProgress:
+            return "Progress saved. Resume or restart when ready."
         case .incomplete:
             return "Incomplete attempt. Finish by \(shortDate(for: state.deadline))."
         case .missed:
@@ -324,6 +346,8 @@ struct HomeView: View {
         switch status {
         case .completed:
             return CoachTheme.accentMint
+        case .inProgress:
+            return CoachTheme.accentPurple
         case .incomplete, .missed:
             return CoachTheme.accentCoral
         case .upcoming:
@@ -346,4 +370,10 @@ struct HomeView: View {
         formatter.dateFormat = "MMM d"
         return formatter.string(from: date)
     }
+}
+
+private struct WorkoutLaunch: Identifiable {
+    let id = UUID()
+    var workout: WorkoutDay
+    var savedProgress: SavedWorkoutProgress?
 }

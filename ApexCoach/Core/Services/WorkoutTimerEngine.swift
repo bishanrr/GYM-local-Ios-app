@@ -43,8 +43,11 @@ final class WorkoutTimerEngine: ObservableObject {
     private var ticker: Task<Void, Never>?
     private var completedSets: [UUID: [CompletedSet]] = [:]
 
-    init(workout: WorkoutDay) {
+    init(workout: WorkoutDay, savedProgress: SavedWorkoutProgress? = nil) {
         self.workout = workout
+        if let savedProgress {
+            restore(from: savedProgress)
+        }
     }
 
     deinit {
@@ -151,6 +154,23 @@ final class WorkoutTimerEngine: ObservableObject {
         HapticEngine.impact(.heavy)
     }
 
+    func restart() {
+        ticker?.cancel()
+        mode = .ready
+        currentExerciseIndex = 0
+        currentSetIndex = 0
+        remainingSeconds = 0
+        elapsedSeconds = 0
+        phaseEndsAt = nil
+        currentPhaseDuration = 1
+        modeBeforePause = nil
+        workoutStartedAt = nil
+        lastResumeAt = nil
+        elapsedBeforePause = 0
+        completedSets = [:]
+        start()
+    }
+
     func pause() {
         guard mode == .work || mode == .rest else { return }
         modeBeforePause = mode
@@ -227,6 +247,28 @@ final class WorkoutTimerEngine: ObservableObject {
         makeSession(wasCompleted: mode == .finished && completedAllPrescribedSets)
     }
 
+    func savedProgress() -> SavedWorkoutProgress {
+        refreshForSnapshot()
+        let groups = completedSets.map { exerciseID, sets in
+            SavedCompletedSetGroup(exerciseID: exerciseID, sets: sets.sorted { $0.setNumber < $1.setNumber })
+        }
+
+        return SavedWorkoutProgress(
+            workoutDayID: workout.id,
+            weekNumber: workout.weekNumber,
+            title: workout.title,
+            startedAt: workoutStartedAt ?? Date(),
+            mode: mode,
+            modeBeforePause: modeBeforePause,
+            currentExerciseIndex: currentExerciseIndex,
+            currentSetIndex: currentSetIndex,
+            remainingSeconds: remainingSeconds,
+            phaseDurationSeconds: currentPhaseDuration,
+            elapsedSeconds: elapsedSeconds,
+            completedSetGroups: groups.sorted { $0.exerciseID.uuidString < $1.exerciseID.uuidString }
+        )
+    }
+
     private var completedAllPrescribedSets: Bool {
         workout.exercises.allSatisfy { exercise in
             let successfulSets = completedSets[exercise.id, default: []].filter(\.wasSuccessful).count
@@ -300,6 +342,43 @@ final class WorkoutTimerEngine: ObservableObject {
         completedSets[exercise.id, default: []].append(set)
     }
 
+    private func restore(from progress: SavedWorkoutProgress) {
+        workoutStartedAt = progress.startedAt
+        elapsedBeforePause = progress.elapsedSeconds
+        elapsedSeconds = progress.elapsedSeconds
+        currentExerciseIndex = min(max(progress.currentExerciseIndex, 0), max(workout.exercises.count - 1, 0))
+        if let exercise = currentExercise {
+            currentSetIndex = min(max(progress.currentSetIndex, 0), max(exercise.sets - 1, 0))
+        } else {
+            currentSetIndex = 0
+        }
+        currentPhaseDuration = max(progress.phaseDurationSeconds, 1)
+        remainingSeconds = max(progress.remainingSeconds, 1)
+        modeBeforePause = progress.modeBeforePause
+        completedSets = Dictionary(uniqueKeysWithValues: progress.completedSetGroups.map { ($0.exerciseID, $0.sets) })
+
+        switch progress.mode {
+        case .work, .rest:
+            mode = progress.mode
+            lastResumeAt = Date()
+            phaseEndsAt = Date().addingTimeInterval(TimeInterval(remainingSeconds))
+            startTicker()
+        case .paused:
+            mode = .paused
+            lastResumeAt = nil
+            phaseEndsAt = nil
+            modeBeforePause = progress.modeBeforePause ?? .work
+        case .ready:
+            mode = .ready
+            lastResumeAt = nil
+            phaseEndsAt = nil
+        case .finished:
+            mode = .finished
+            lastResumeAt = nil
+            phaseEndsAt = nil
+        }
+    }
+
     private func remainingDurationForExercises(after index: Int) -> TimeInterval {
         let nextIndex = index + 1
         guard workout.exercises.indices.contains(nextIndex) else { return 0 }
@@ -327,6 +406,13 @@ final class WorkoutTimerEngine: ObservableObject {
         } else {
             elapsedSeconds = elapsedBeforePause
         }
+    }
+
+    private func refreshForSnapshot() {
+        if mode == .work || mode == .rest, let end = phaseEndsAt {
+            remainingSeconds = max(1, Int(ceil(end.timeIntervalSinceNow)))
+        }
+        refreshElapsed()
     }
 
     private func makeSession(wasCompleted: Bool) -> WorkoutSession {

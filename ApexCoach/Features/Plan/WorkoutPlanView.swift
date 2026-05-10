@@ -3,7 +3,7 @@ import SwiftUI
 struct WorkoutPlanView: View {
     @EnvironmentObject private var appModel: AppViewModel
     @State private var selectedTab = "Exercises"
-    @State private var activeWorkout: WorkoutDay?
+    @State private var activeWorkout: PlanWorkoutLaunch?
 
     var body: some View {
         NavigationStack {
@@ -19,8 +19,24 @@ struct WorkoutPlanView: View {
                             details(for: workout)
                         }
 
-                        PrimaryCoachButton(title: "Start Workout", systemImage: "play.fill") {
-                            activeWorkout = workout
+                        PrimaryCoachButton(title: appModel.hasSavedProgress(for: workout) ? "Resume Workout" : "Start Workout", systemImage: "play.fill") {
+                            activeWorkout = PlanWorkoutLaunch(workout: workout, savedProgress: appModel.savedProgress(for: workout))
+                        }
+
+                        if appModel.hasSavedProgress(for: workout) {
+                            Button {
+                                appModel.clearSavedProgress(for: workout)
+                                activeWorkout = PlanWorkoutLaunch(workout: workout, savedProgress: nil)
+                            } label: {
+                                Label("Restart Workout", systemImage: "arrow.counterclockwise")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(CoachTheme.secondaryText)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .background(CoachTheme.surface.opacity(0.72))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
                         }
                     } else {
                         EmptyStateView(
@@ -37,8 +53,8 @@ struct WorkoutPlanView: View {
             .coachInlineNavigationTitle()
             .background(CoachTheme.background)
         }
-        .coachFullScreenCover(item: $activeWorkout) { workout in
-            ActiveWorkoutView(workout: workout)
+        .coachFullScreenCover(item: $activeWorkout) { launch in
+            ActiveWorkoutView(workout: launch.workout, savedProgress: launch.savedProgress)
                 .environmentObject(appModel)
         }
     }
@@ -115,6 +131,12 @@ struct WorkoutPlanView: View {
             }
         }
     }
+}
+
+private struct PlanWorkoutLaunch: Identifiable {
+    let id = UUID()
+    var workout: WorkoutDay
+    var savedProgress: SavedWorkoutProgress?
 }
 
 private struct ExerciseListCard: View {

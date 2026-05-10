@@ -133,6 +133,7 @@ struct AppSnapshot: Codable, Equatable {
     var activePlan: WorkoutPlan?
     var workoutHistory: [WorkoutSession]
     var personalRecords: [PersonalRecord]
+    var savedWorkoutProgress: [SavedWorkoutProgress]
     var settings: AppSettings
 
     init(
@@ -140,20 +141,97 @@ struct AppSnapshot: Codable, Equatable {
         activePlan: WorkoutPlan? = nil,
         workoutHistory: [WorkoutSession] = [],
         personalRecords: [PersonalRecord] = [],
+        savedWorkoutProgress: [SavedWorkoutProgress] = [],
         settings: AppSettings = .default
     ) {
         self.userProfile = userProfile
         self.activePlan = activePlan
         self.workoutHistory = workoutHistory
         self.personalRecords = personalRecords
+        self.savedWorkoutProgress = savedWorkoutProgress
         self.settings = settings
     }
+
+    enum CodingKeys: String, CodingKey {
+        case userProfile
+        case activePlan
+        case workoutHistory
+        case personalRecords
+        case savedWorkoutProgress
+        case settings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userProfile = try container.decodeIfPresent(UserProfile.self, forKey: .userProfile)
+        activePlan = try container.decodeIfPresent(WorkoutPlan.self, forKey: .activePlan)
+        workoutHistory = try container.decodeIfPresent([WorkoutSession].self, forKey: .workoutHistory) ?? []
+        personalRecords = try container.decodeIfPresent([PersonalRecord].self, forKey: .personalRecords) ?? []
+        savedWorkoutProgress = try container.decodeIfPresent([SavedWorkoutProgress].self, forKey: .savedWorkoutProgress) ?? []
+        settings = try container.decodeIfPresent(AppSettings.self, forKey: .settings) ?? .default
+    }
+}
+
+struct SavedWorkoutProgress: Identifiable, Codable, Equatable, Hashable {
+    var id: UUID
+    var workoutDayID: UUID
+    var weekNumber: Int
+    var title: String
+    var startedAt: Date
+    var savedAt: Date
+    var mode: WorkoutTimerMode
+    var modeBeforePause: WorkoutTimerMode?
+    var currentExerciseIndex: Int
+    var currentSetIndex: Int
+    var remainingSeconds: Int
+    var phaseDurationSeconds: TimeInterval
+    var elapsedSeconds: TimeInterval
+    var completedSetGroups: [SavedCompletedSetGroup]
+
+    init(
+        id: UUID = UUID(),
+        workoutDayID: UUID,
+        weekNumber: Int,
+        title: String,
+        startedAt: Date,
+        savedAt: Date = Date(),
+        mode: WorkoutTimerMode,
+        modeBeforePause: WorkoutTimerMode?,
+        currentExerciseIndex: Int,
+        currentSetIndex: Int,
+        remainingSeconds: Int,
+        phaseDurationSeconds: TimeInterval,
+        elapsedSeconds: TimeInterval,
+        completedSetGroups: [SavedCompletedSetGroup]
+    ) {
+        self.id = id
+        self.workoutDayID = workoutDayID
+        self.weekNumber = weekNumber
+        self.title = title
+        self.startedAt = startedAt
+        self.savedAt = savedAt
+        self.mode = mode
+        self.modeBeforePause = modeBeforePause
+        self.currentExerciseIndex = currentExerciseIndex
+        self.currentSetIndex = currentSetIndex
+        self.remainingSeconds = remainingSeconds
+        self.phaseDurationSeconds = phaseDurationSeconds
+        self.elapsedSeconds = elapsedSeconds
+        self.completedSetGroups = completedSetGroups
+    }
+}
+
+struct SavedCompletedSetGroup: Identifiable, Codable, Equatable, Hashable {
+    var id: UUID { exerciseID }
+    var exerciseID: UUID
+    var sets: [CompletedSet]
 }
 
 enum WeekdayWorkoutStatus: String, Equatable {
     case rest
     case upcoming
     case available
+    case inProgress
     case completed
     case incomplete
     case missed

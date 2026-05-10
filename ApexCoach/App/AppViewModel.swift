@@ -143,11 +143,31 @@ final class AppViewModel: ObservableObject {
         return state.status != .completed && state.status != .missed
     }
 
+    func savedProgress(for day: WorkoutDay) -> SavedWorkoutProgress? {
+        snapshot.savedWorkoutProgress.first { $0.workoutDayID == day.id }
+    }
+
+    func hasSavedProgress(for day: WorkoutDay) -> Bool {
+        savedProgress(for: day) != nil
+    }
+
+    func saveWorkoutProgress(_ progress: SavedWorkoutProgress) {
+        snapshot.savedWorkoutProgress.removeAll { $0.workoutDayID == progress.workoutDayID }
+        snapshot.savedWorkoutProgress.append(progress)
+        persist()
+    }
+
+    func clearSavedProgress(for day: WorkoutDay) {
+        snapshot.savedWorkoutProgress.removeAll { $0.workoutDayID == day.id }
+        persist()
+    }
+
     func completeOnboarding(with profile: UserProfile) async {
         do {
             let plan = try await generator.generatePlan(userProfile: profile)
             snapshot.userProfile = profile
             snapshot.activePlan = plan
+            snapshot.savedWorkoutProgress = []
             try await store.saveSnapshot(snapshot)
         } catch {
             errorMessage = "Could not generate your plan. Please try again."
@@ -158,6 +178,7 @@ final class AppViewModel: ObservableObject {
         guard let profile = snapshot.userProfile else { return }
         do {
             snapshot.activePlan = try await generator.generatePlan(userProfile: profile)
+            snapshot.savedWorkoutProgress = []
             try await store.saveSnapshot(snapshot)
             HapticEngine.notify(.success)
         } catch {
@@ -168,6 +189,7 @@ final class AppViewModel: ObservableObject {
     func recordCompletedWorkout(_ session: WorkoutSession) {
         guard !snapshot.workoutHistory.contains(where: { $0.id == session.id }) else { return }
 
+        snapshot.savedWorkoutProgress.removeAll { $0.workoutDayID == session.workoutDayID }
         snapshot.workoutHistory.append(session)
         updatePersonalRecords(from: session)
         generateNextWeekIfReady()
@@ -192,6 +214,7 @@ final class AppViewModel: ObservableObject {
     func resetOnboarding() {
         snapshot.userProfile = nil
         snapshot.activePlan = nil
+        snapshot.savedWorkoutProgress = []
         persist()
     }
 
@@ -214,6 +237,10 @@ final class AppViewModel: ObservableObject {
 
         if Date() >= deadline {
             return .missed
+        }
+
+        if hasSavedProgress(for: workout) {
+            return .inProgress
         }
 
         if isWorkoutIncomplete(workout) {

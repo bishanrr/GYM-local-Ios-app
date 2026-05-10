@@ -6,8 +6,8 @@ final class ActiveWorkoutViewModel: ObservableObject {
     let engine: WorkoutTimerEngine
     private var cancellables = Set<AnyCancellable>()
 
-    init(workout: WorkoutDay) {
-        engine = WorkoutTimerEngine(workout: workout)
+    init(workout: WorkoutDay, savedProgress: SavedWorkoutProgress? = nil) {
+        engine = WorkoutTimerEngine(workout: workout, savedProgress: savedProgress)
         engine.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
@@ -25,15 +25,20 @@ final class ActiveWorkoutViewModel: ObservableObject {
     var completedSetCount: Int { engine.completedSetCount }
     var totalSetCount: Int { engine.totalSetCount }
     var remainingSetCount: Int { engine.remainingSetCount }
-    var completedRepCount: Int { engine.completedRepCount }
-    var totalRepCount: Int { engine.totalRepCount }
-    var remainingRepCount: Int { engine.remainingRepCount }
+    var setProgress: Double {
+        guard totalSetCount > 0 else { return 0 }
+        return Double(completedSetCount) / Double(totalSetCount)
+    }
     var totalWorkoutTimeText: String { engine.totalWorkoutDurationSeconds.clockString }
     var remainingWorkoutTimeText: String { engine.remainingWorkoutDurationSeconds.clockString }
     var workoutProgress: Double { engine.workoutProgress }
 
     func start() {
         engine.start()
+    }
+
+    func restart() {
+        engine.restart()
     }
 
     func pauseOrResume() {
@@ -62,6 +67,10 @@ final class ActiveWorkoutViewModel: ObservableObject {
 
     func completedSession() -> WorkoutSession {
         engine.completedSession()
+    }
+
+    func savedProgress() -> SavedWorkoutProgress {
+        engine.savedProgress()
     }
 
     func endWorkout(markCompleted: Bool = false) -> WorkoutSession {

@@ -310,6 +310,8 @@ struct WeekProgressStrip: View {
         switch status {
         case .completed:
             return "checkmark"
+        case .inProgress:
+            return "play.fill"
         case .incomplete:
             return "exclamationmark"
         case .missed:
@@ -327,6 +329,8 @@ struct WeekProgressStrip: View {
         switch status {
         case .completed:
             return CoachTheme.accentMint
+        case .inProgress:
+            return CoachTheme.accentPurple
         case .incomplete, .missed:
             return CoachTheme.accentCoral
         case .available:
@@ -345,6 +349,8 @@ struct WeekProgressStrip: View {
         switch state.status {
         case .completed:
             color = CoachTheme.accentMint
+        case .inProgress:
+            color = CoachTheme.accentPurple
         case .incomplete, .missed:
             color = CoachTheme.accentCoral
         case .available:

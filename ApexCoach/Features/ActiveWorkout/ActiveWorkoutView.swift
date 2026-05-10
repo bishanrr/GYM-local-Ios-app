@@ -9,8 +9,8 @@ struct ActiveWorkoutView: View {
     @State private var repsValue: Int = 8
     @State private var weightValue: Int = 80
 
-    init(workout: WorkoutDay) {
-        _viewModel = StateObject(wrappedValue: ActiveWorkoutViewModel(workout: workout))
+    init(workout: WorkoutDay, savedProgress: SavedWorkoutProgress? = nil) {
+        _viewModel = StateObject(wrappedValue: ActiveWorkoutViewModel(workout: workout, savedProgress: savedProgress))
     }
 
     var body: some View {
@@ -20,7 +20,7 @@ struct ActiveWorkoutView: View {
             if viewModel.mode == .finished {
                 completionView
             } else if viewModel.mode == .rest {
-                RestScreen(viewModel: viewModel)
+                RestScreen(viewModel: viewModel, onSaveAndClose: saveAndDismiss)
             } else {
                 workScreen
             }
@@ -32,6 +32,8 @@ struct ActiveWorkoutView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 viewModel.recoverFromClock()
+            } else {
+                persistDraftIfNeeded()
             }
         }
         .onChange(of: viewModel.currentExercise?.id) { _, _ in
@@ -56,7 +58,6 @@ struct ActiveWorkoutView: View {
                         WorkoutProgressOverview(viewModel: viewModel)
 
                         VStack(spacing: 12) {
-                            ValueStepperCard(title: "Reps", value: $repsValue, range: 0...50)
                             ValueStepperCard(title: "Weight (\(appModel.snapshot.settings.units.weightUnit))", value: $weightValue, range: 0...600, step: 5)
                         }
 
@@ -86,8 +87,14 @@ struct ActiveWorkoutView: View {
 
     private var topBar: some View {
         HStack {
-            GlassIconButton(systemImage: "xmark", title: "End") {
-                recordPartialAndDismiss()
+            HStack(spacing: 8) {
+                GlassIconButton(systemImage: "xmark", title: "Save") {
+                    saveAndDismiss()
+                }
+
+                GlassIconButton(systemImage: "arrow.counterclockwise", title: "Restart") {
+                    restartWorkout()
+                }
             }
 
             Spacer()
@@ -276,16 +283,25 @@ struct ActiveWorkoutView: View {
         appModel.recordCompletedWorkout(session)
     }
 
-    private func recordPartialAndDismiss() {
-        guard recordedSessionID == nil else {
-            dismiss()
-            return
-        }
-        let session = viewModel.endWorkout(markCompleted: false)
-        recordedSessionID = session.id
-        appModel.recordCompletedWorkout(session)
+    private func saveAndDismiss() {
+        persistDraftIfNeeded()
         dismiss()
     }
+
+    private func persistDraftIfNeeded() {
+        guard recordedSessionID == nil, viewModel.mode != .finished else {
+            return
+        }
+        appModel.saveWorkoutProgress(viewModel.savedProgress())
+    }
+
+    private func restartWorkout() {
+        recordedSessionID = nil
+        appModel.clearSavedProgress(for: viewModel.workout)
+        viewModel.restart()
+        syncEditableTargets()
+    }
+
 }
 
 private struct ValueStepperCard: View {
@@ -346,6 +362,7 @@ private struct ValueStepperCard: View {
 
 private struct RestScreen: View {
     @ObservedObject var viewModel: ActiveWorkoutViewModel
+    var onSaveAndClose: () -> Void
 
     var body: some View {
         VStack(spacing: 22) {
@@ -356,7 +373,7 @@ private struct RestScreen: View {
                     .foregroundStyle(CoachTheme.primaryText)
                 Spacer()
                 GlassIconButton(systemImage: "xmark", title: "Close") {
-                    viewModel.skipRest()
+                    onSaveAndClose()
                 }
             }
             .padding(.horizontal, 20)
@@ -452,31 +469,21 @@ private struct WorkoutProgressOverview: View {
                         .foregroundStyle(CoachTheme.accentMint)
                 }
 
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.10))
-                        Capsule()
-                            .fill(CoachTheme.accentGradient)
-                            .frame(width: proxy.size.width * viewModel.workoutProgress)
-                    }
-                }
-                .frame(height: 8)
+                WorkoutProgressBar(
+                    title: "Sets",
+                    value: "\(viewModel.completedSetCount) / \(viewModel.totalSetCount)",
+                    detail: "\(viewModel.remainingSetCount) remaining",
+                    progress: viewModel.setProgress,
+                    tint: CoachTheme.accentMint
+                )
 
-                VStack(spacing: 10) {
-                    HStack(spacing: 10) {
-                        WorkoutProgressTile(title: "Sets Done", value: "\(viewModel.completedSetCount)/\(viewModel.totalSetCount)", tint: CoachTheme.accentMint)
-                        WorkoutProgressTile(title: "Sets Left", value: "\(viewModel.remainingSetCount)", tint: CoachTheme.accentBlue)
-                    }
-                    HStack(spacing: 10) {
-                        WorkoutProgressTile(title: "Reps Done", value: "\(viewModel.completedRepCount)/\(viewModel.totalRepCount)", tint: CoachTheme.accentMint)
-                        WorkoutProgressTile(title: "Reps Left", value: "\(viewModel.remainingRepCount)", tint: CoachTheme.accentBlue)
-                    }
-                    HStack(spacing: 10) {
-                        WorkoutProgressTile(title: "Total Time", value: viewModel.totalWorkoutTimeText, tint: CoachTheme.accentGold)
-                        WorkoutProgressTile(title: "Time Left", value: viewModel.remainingWorkoutTimeText, tint: CoachTheme.accentPurple)
-                    }
-                }
+                WorkoutProgressBar(
+                    title: "Time",
+                    value: viewModel.elapsedText,
+                    detail: "\(viewModel.remainingWorkoutTimeText) left of \(viewModel.totalWorkoutTimeText)",
+                    progress: viewModel.workoutProgress,
+                    tint: CoachTheme.accentBlue
+                )
             }
         }
     }
@@ -486,41 +493,74 @@ private struct RestProgressSummary: View {
     @ObservedObject var viewModel: ActiveWorkoutViewModel
 
     var body: some View {
-        HStack(spacing: 10) {
-            WorkoutProgressTile(title: "Sets", value: "\(viewModel.completedSetCount)/\(viewModel.totalSetCount)", tint: CoachTheme.accentMint)
-            WorkoutProgressTile(title: "Reps", value: "\(viewModel.completedRepCount)/\(viewModel.totalRepCount)", tint: CoachTheme.accentBlue)
-            WorkoutProgressTile(title: "Left", value: viewModel.remainingWorkoutTimeText, tint: CoachTheme.accentPurple)
+        VStack(spacing: 12) {
+            WorkoutProgressBar(
+                title: "Sets",
+                value: "\(viewModel.completedSetCount) / \(viewModel.totalSetCount)",
+                detail: "\(viewModel.remainingSetCount) remaining",
+                progress: viewModel.setProgress,
+                tint: CoachTheme.accentMint
+            )
+            WorkoutProgressBar(
+                title: "Time",
+                value: viewModel.remainingWorkoutTimeText,
+                detail: "remaining",
+                progress: viewModel.workoutProgress,
+                tint: CoachTheme.accentBlue
+            )
         }
-    }
-}
-
-private struct WorkoutProgressTile: View {
-    var title: String
-    var value: String
-    var tint: Color
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(CoachTheme.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-            Text(value)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(CoachTheme.primaryText)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 58)
-        .background(tint.opacity(0.12))
+        .padding(14)
+        .background(CoachTheme.surface.opacity(0.96))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(tint.opacity(0.22), lineWidth: 1)
+                .stroke(CoachTheme.stroke, lineWidth: 1)
         )
+    }
+}
+
+private struct WorkoutProgressBar: View {
+    var title: String
+    var value: String
+    var detail: String
+    var progress: Double
+    var tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(CoachTheme.secondaryText)
+                Spacer()
+                Text(value)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                    .monospacedDigit()
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.10))
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [tint, tint.opacity(0.72)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: proxy.size.width * max(0, min(1, progress)))
+                }
+            }
+            .frame(height: 9)
+
+            Text(detail)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(CoachTheme.tertiaryText)
+                .lineLimit(1)
+        }
     }
 }
 
