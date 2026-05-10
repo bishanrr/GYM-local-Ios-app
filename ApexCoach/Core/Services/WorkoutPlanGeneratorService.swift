@@ -6,16 +6,21 @@ protocol WorkoutPlanGenerating {
 
 struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
     func generatePlan(userProfile: UserProfile) async throws -> WorkoutPlan {
-        let week = generateWeek(number: 1, startDate: Calendar.current.startOfDay(for: Date()), userProfile: userProfile)
+        let calendar = Calendar.current
+        let startDate = calendar.startOfDay(for: Date())
+        let weeks = (0..<2).map { offset in
+            let weekStart = calendar.date(byAdding: .day, value: offset * 7, to: startDate) ?? startDate
+            return generateWeek(number: offset + 1, startDate: weekStart, userProfile: userProfile)
+        }
         let title = "\(userProfile.goal.rawValue) Coach"
-        let summary = "\(userProfile.preferredSplit.rawValue) split tuned for \(userProfile.trainingStyle.rawValue.lowercased()), \(userProfile.durationPreference.label) sessions, and local progressive overload."
+        let summary = "Two-week \(userProfile.preferredSplit.rawValue) split tuned for \(userProfile.trainingStyle.rawValue.lowercased()), \(userProfile.durationPreference.label) sessions, and local progressive overload."
 
         return WorkoutPlan(
             userProfileID: userProfile.id,
             title: title,
             summary: summary,
             source: .localRules,
-            weeks: [week]
+            weeks: weeks
         )
     }
 

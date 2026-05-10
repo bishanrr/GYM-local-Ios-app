@@ -4,25 +4,25 @@ struct WorkoutPlanView: View {
     @EnvironmentObject private var appModel: AppViewModel
     @State private var selectedTab = "Exercises"
     @State private var activeWorkout: PlanWorkoutLaunch?
-    @State private var selectedWeekdayIndex: Int?
+    @State private var selectedDayID: WeekdayWorkoutState.ID?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    if !appModel.weeklyDayStates.isEmpty {
+                    if !appModel.trainingBlockDayStates.isEmpty {
                         planHeader
                         ScheduleCalendarView(
-                            states: appModel.weeklyDayStates,
-                            selectedDayIndex: selectedState?.weekdayIndex
+                            states: appModel.trainingBlockDayStates,
+                            selectedDayID: selectedState?.id
                         ) { state in
-                            selectedWeekdayIndex = state.weekdayIndex
+                            selectedDayID = state.id
                         }
                         WeeklyWorkoutScheduleView(
-                            states: appModel.weeklyDayStates,
-                            selectedDayIndex: selectedState?.weekdayIndex
+                            states: appModel.trainingBlockDayStates,
+                            selectedDayID: selectedState?.id
                         ) { state in
-                            selectedWeekdayIndex = state.weekdayIndex
+                            selectedDayID = state.id
                         }
 
                         if let state = selectedState {
@@ -44,7 +44,7 @@ struct WorkoutPlanView: View {
             .background(CoachTheme.background)
         }
         .onAppear {
-            selectedWeekdayIndex = selectedState?.weekdayIndex
+            selectedDayID = selectedState?.id
         }
         .coachFullScreenCover(item: $activeWorkout) { launch in
             ActiveWorkoutView(workout: launch.workout, savedProgress: launch.savedProgress)
@@ -53,9 +53,9 @@ struct WorkoutPlanView: View {
     }
 
     private var selectedState: WeekdayWorkoutState? {
-        let states = appModel.weeklyDayStates
-        if let selectedWeekdayIndex,
-           let state = states.first(where: { $0.weekdayIndex == selectedWeekdayIndex }) {
+        let states = appModel.trainingBlockDayStates
+        if let selectedDayID,
+           let state = states.first(where: { $0.id == selectedDayID }) {
             return state
         }
         return appModel.suggestedWeekdayState ?? states.first
@@ -130,26 +130,30 @@ struct WorkoutPlanView: View {
     }
 
     private func restDayDetail(for state: WeekdayWorkoutState) -> some View {
-        PremiumCard {
-            HStack(spacing: 14) {
-                Image(systemName: "moon.stars.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(CoachTheme.accentMint)
-                    .frame(width: 48, height: 48)
-                    .background(CoachTheme.surfaceStrong)
-                    .clipShape(Circle())
+        VStack(alignment: .leading, spacing: 16) {
+            PremiumCard {
+                HStack(spacing: 14) {
+                    Image(systemName: "moon.stars.fill")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(CoachTheme.accentMint)
+                        .frame(width: 48, height: 48)
+                        .background(CoachTheme.surfaceStrong)
+                        .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Rest Day")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(CoachTheme.primaryText)
-                    Text("\(weekdayName(for: state.date)) is planned for recovery.")
-                        .font(.subheadline)
-                        .foregroundStyle(CoachTheme.secondaryText)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Rest Day")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(CoachTheme.primaryText)
+                        Text("\(weekdayName(for: state.date)) is planned for recovery. You can still add a light cardio extra.")
+                            .font(.subheadline)
+                            .foregroundStyle(CoachTheme.secondaryText)
+                    }
+
+                    Spacer()
                 }
-
-                Spacer()
             }
+
+            cardioExtras(for: nil, state: state)
         }
     }
 
@@ -213,7 +217,7 @@ struct WorkoutPlanView: View {
         }
     }
 
-    private func cardioExtras(for workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
+    private func cardioExtras(for workout: WorkoutDay?, state: WeekdayWorkoutState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(
                 title: "Cardio Extras",
@@ -224,14 +228,18 @@ struct WorkoutPlanView: View {
                 ForEach(CardioExtraOption.library) { option in
                     CardioExtraCard(
                         option: option,
-                        isAdded: workout.exercises.contains { $0.name == option.exerciseName },
-                        canAdd: appModel.canStartWorkout(state)
+                        isAdded: workout?.exercises.contains { $0.name == option.exerciseName } ?? false,
+                        canAdd: canAddExtra(to: state)
                     ) {
-                        appModel.addExtraExercise(option.exercise(), to: workout)
+                        appModel.addExtraExercise(option.exercise(), to: state)
                     }
                 }
             }
         }
+    }
+
+    private func canAddExtra(to state: WeekdayWorkoutState) -> Bool {
+        Date() < state.deadline && state.status != .completed && state.status != .missed
     }
 
     private func statusColor(for status: WeekdayWorkoutStatus) -> Color {
@@ -266,7 +274,7 @@ private struct PlanWorkoutLaunch: Identifiable {
 
 private struct ScheduleCalendarView: View {
     var states: [WeekdayWorkoutState]
-    var selectedDayIndex: Int?
+    var selectedDayID: WeekdayWorkoutState.ID?
     var onSelect: (WeekdayWorkoutState) -> Void
 
     private var calendar: Calendar { Calendar.current }
@@ -298,7 +306,7 @@ private struct ScheduleCalendarView: View {
                                 CalendarDayCell(
                                     day: calendar.component(.day, from: date),
                                     isCurrentMonth: calendar.isDate(date, equalTo: monthDate, toGranularity: .month),
-                                    isSelected: selectedDayIndex == state.weekdayIndex,
+                                    isSelected: selectedDayID == state.id,
                                     status: state.status
                                 )
                             }
@@ -417,12 +425,12 @@ private struct LegendDot: View {
 
 private struct WeeklyWorkoutScheduleView: View {
     var states: [WeekdayWorkoutState]
-    var selectedDayIndex: Int?
+    var selectedDayID: WeekdayWorkoutState.ID?
     var onSelect: (WeekdayWorkoutState) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Weekly Schedule")
+            Text("Training Block Schedule")
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(CoachTheme.primaryText)
 
@@ -431,7 +439,7 @@ private struct WeeklyWorkoutScheduleView: View {
                     Button {
                         onSelect(state)
                     } label: {
-                        ScheduleDayRow(state: state, isSelected: selectedDayIndex == state.weekdayIndex)
+                        ScheduleDayRow(state: state, isSelected: selectedDayID == state.id)
                     }
                     .buttonStyle(.plain)
                 }
@@ -502,9 +510,9 @@ private struct ScheduleDayRow: View {
 
     private var subtitle: String {
         guard let workout = state.workout else {
-            return "Recovery planned"
+            return "Week \(state.weekNumber) • Recovery planned"
         }
-        return "\(workout.estimatedDurationMinutes) min • \(workout.muscleFocus.prefix(3).map(\.rawValue).joined(separator: " • "))"
+        return "Week \(state.weekNumber) • \(workout.estimatedDurationMinutes) min • \(workout.muscleFocus.prefix(3).map(\.rawValue).joined(separator: " • "))"
     }
 
     private var statusTitle: String {
@@ -827,6 +835,9 @@ private struct ExerciseListCard: View {
 
     private var subtitle: String {
         if exercise.phase == .main {
+            if exercise.targetReps.upperBound <= 1, exercise.workDuration >= 60 {
+                return "\(exercise.sets) set x \(Int(exercise.workDuration / 60)) min"
+            }
             return "\(exercise.sets) sets x \(exercise.targetReps.label) reps"
         }
         return "\(Int(exercise.workDuration)) sec \(exercise.phase.rawValue.lowercased())"

@@ -28,12 +28,38 @@ struct RootView: View {
         } message: {
             Text(appModel.errorMessage ?? "")
         }
+        .alert("Two-week block complete", isPresented: planContinuationBinding) {
+            Button("Add Progressive Overload") {
+                appModel.addProgressiveOverloadBlock()
+            }
+            Button("Keep Same Plan") {
+                appModel.keepSameTrainingBlock()
+            }
+            Button("Start New Plan", role: .destructive) {
+                appModel.startNewWorkoutPlan()
+            }
+        } message: {
+            Text("Choose how Apex Coach should schedule your next two weeks.")
+        }
     }
 
     private var errorBinding: Binding<Bool> {
         Binding(
             get: { appModel.errorMessage != nil },
             set: { if !$0 { appModel.errorMessage = nil } }
+        )
+    }
+
+    private var planContinuationBinding: Binding<Bool> {
+        Binding(
+            get: {
+                !appModel.isBootstrapping
+                    && hasDismissedWelcome
+                    && appModel.hasCompletedOnboarding
+                    && appModel.errorMessage == nil
+                    && appModel.shouldShowPlanContinuationPrompt
+            },
+            set: { _ in }
         )
     }
 }

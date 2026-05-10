@@ -238,7 +238,8 @@ enum WeekdayWorkoutStatus: String, Equatable {
 }
 
 struct WeekdayWorkoutState: Identifiable, Equatable {
-    var id: Int { weekdayIndex }
+    var id: String { "\(weekNumber)-\(weekdayIndex)" }
+    var weekNumber: Int
     var weekdayIndex: Int
     var label: String
     var date: Date

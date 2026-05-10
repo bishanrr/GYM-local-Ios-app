@@ -346,6 +346,18 @@ struct WorkoutPlan: Identifiable, Codable, Equatable, Hashable {
     }
 
     var currentWeek: WorkoutWeek? {
-        weeks.max { $0.weekNumber < $1.weekNumber }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let sortedWeeks = weeks.sorted { $0.weekNumber < $1.weekNumber }
+
+        if let activeWeek = sortedWeeks.first(where: { week in
+            let startDate = calendar.startOfDay(for: week.startDate)
+            let endDate = calendar.date(byAdding: .day, value: 7, to: startDate) ?? startDate
+            return today >= startDate && today < endDate
+        }) {
+            return activeWeek
+        }
+
+        return sortedWeeks.first { today < calendar.startOfDay(for: $0.startDate) } ?? sortedWeeks.last
     }
 }
