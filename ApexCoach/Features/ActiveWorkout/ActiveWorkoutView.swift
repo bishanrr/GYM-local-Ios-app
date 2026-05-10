@@ -55,15 +55,15 @@ struct ActiveWorkoutView: View {
                     VStack(spacing: 18) {
                         hero(for: exercise)
                         activeTimerCard(for: exercise)
+                        SetEntryPanel(
+                            exercise: exercise,
+                            units: appModel.snapshot.settings.units.weightUnit,
+                            repsValue: $repsValue,
+                            weightValue: $weightValue
+                        ) {
+                            viewModel.completeSet(reps: repsValue, weight: loggedWeight(for: exercise))
+                        }
                         WorkoutProgressOverview(viewModel: viewModel)
-
-                        VStack(spacing: 12) {
-                            ValueStepperCard(title: "Weight (\(appModel.snapshot.settings.units.weightUnit))", value: $weightValue, range: 0...600, step: 5)
-                        }
-
-                        PrimaryCoachButton(title: completeButtonTitle(for: exercise), systemImage: "checkmark") {
-                            viewModel.completeSet(reps: repsValue, weight: Double(weightValue))
-                        }
 
                         restTimerRow(for: exercise)
 
@@ -276,6 +276,13 @@ struct ActiveWorkoutView: View {
         weightValue = Int(exercise.suggestedWeight ?? 0)
     }
 
+    private func loggedWeight(for exercise: Exercise) -> Double? {
+        if exercise.suggestedWeight == nil && weightValue == 0 {
+            return nil
+        }
+        return Double(weightValue)
+    }
+
     private func recordCompletedSessionIfNeeded() {
         guard recordedSessionID == nil else { return }
         let session = viewModel.completedSession()
@@ -302,6 +309,95 @@ struct ActiveWorkoutView: View {
         syncEditableTargets()
     }
 
+}
+
+private struct SetEntryPanel: View {
+    var exercise: Exercise
+    var units: String
+    @Binding var repsValue: Int
+    @Binding var weightValue: Int
+    var onComplete: () -> Void
+
+    var body: some View {
+        PremiumCard {
+            VStack(spacing: 14) {
+                HStack(spacing: 12) {
+                    CompactSetStepper(title: "Reps", value: $repsValue, range: 0...60, step: 1)
+                    CompactSetStepper(title: "Weight (\(units))", value: $weightValue, range: 0...600, step: 5)
+                }
+
+                PrimaryCoachButton(title: completeButtonTitle, systemImage: "checkmark") {
+                    onComplete()
+                }
+            }
+        }
+    }
+
+    private var completeButtonTitle: String {
+        switch exercise.phase {
+        case .warmUp:
+            return "Complete Warm Up"
+        case .stretching:
+            return "Complete Stretch"
+        case .main:
+            return "Complete Set"
+        }
+    }
+}
+
+private struct CompactSetStepper: View {
+    var title: String
+    @Binding var value: Int
+    var range: ClosedRange<Int>
+    var step: Int = 1
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(CoachTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            HStack(spacing: 10) {
+                stepButton(systemImage: "minus") {
+                    value = max(range.lowerBound, value - step)
+                }
+
+                Text("\(value)")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(CoachTheme.primaryText)
+                    .monospacedDigit()
+                    .frame(minWidth: 48)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.74)
+
+                stepButton(systemImage: "plus") {
+                    value = min(range.upperBound, value + step)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(12)
+        .background(CoachTheme.surfaceStrong.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(CoachTheme.stroke, lineWidth: 1)
+        )
+    }
+
+    private func stepButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(CoachTheme.primaryText)
+                .frame(width: 32, height: 32)
+                .background(CoachTheme.surface)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 private struct ValueStepperCard: View {

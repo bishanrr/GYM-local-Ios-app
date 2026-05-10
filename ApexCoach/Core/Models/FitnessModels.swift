@@ -168,7 +168,7 @@ struct RepRange: Codable, Equatable, Hashable {
     var upperBound: Int
 
     var label: String {
-        lowerBound == upperBound ? "\(lowerBound)" : "\(lowerBound)-\(upperBound)"
+        "\(upperBound)"
     }
 }
 

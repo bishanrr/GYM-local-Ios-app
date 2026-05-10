@@ -60,18 +60,12 @@ struct ProgressiveOverloadService {
         let progressionLane = weekNumber % 4
         switch progressionLane {
         case 0:
-            next.targetReps = RepRange(
-                lowerBound: exercise.targetReps.lowerBound,
-                upperBound: exercise.targetReps.upperBound + 1
-            )
+            next.targetReps = exactReps(exercise.targetReps.upperBound + 1)
         case 1:
             if let weight = exercise.suggestedWeight {
                 next.suggestedWeight = roundedTrainingWeight(weight * bump)
             } else {
-                next.targetReps = RepRange(
-                    lowerBound: exercise.targetReps.lowerBound + 1,
-                    upperBound: exercise.targetReps.upperBound + 1
-                )
+                next.targetReps = exactReps(exercise.targetReps.upperBound + 1)
             }
         case 2:
             next.restDuration = max(minimumRest(for: profile), exercise.restDuration - 5)
@@ -79,10 +73,7 @@ struct ProgressiveOverloadService {
             if profile.experienceLevel != .beginner, exercise.sets < 5 {
                 next.sets += 1
             } else {
-                next.targetReps = RepRange(
-                    lowerBound: exercise.targetReps.lowerBound,
-                    upperBound: exercise.targetReps.upperBound + 1
-                )
+                next.targetReps = exactReps(exercise.targetReps.upperBound + 1)
             }
         }
 
@@ -91,6 +82,10 @@ struct ProgressiveOverloadService {
 
     private func roundedTrainingWeight(_ value: Double) -> Double {
         (value / 2.5).rounded() * 2.5
+    }
+
+    private func exactReps(_ reps: Int) -> RepRange {
+        RepRange(lowerBound: reps, upperBound: reps)
     }
 
     private func minimumRest(for profile: UserProfile) -> TimeInterval {

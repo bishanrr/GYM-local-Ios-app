@@ -155,34 +155,34 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
 
     private func prescription(for profile: UserProfile) -> (sets: Int, reps: RepRange, rest: TimeInterval, work: TimeInterval) {
         var sets: Int
-        var reps: RepRange
+        var reps: Int
         var rest: TimeInterval
         var work: TimeInterval
 
         switch profile.trainingStyle {
         case .strength:
             sets = 4
-            reps = RepRange(lowerBound: 3, upperBound: 6)
+            reps = 5
             rest = 150
             work = 45
         case .hypertrophy:
             sets = 4
-            reps = RepRange(lowerBound: 8, upperBound: 12)
+            reps = 10
             rest = 75
             work = 45
         case .hiit:
             sets = 3
-            reps = RepRange(lowerBound: 12, upperBound: 18)
+            reps = 15
             rest = 35
             work = 40
         case .functional:
             sets = 3
-            reps = RepRange(lowerBound: 8, upperBound: 14)
+            reps = 12
             rest = 60
             work = 45
         case .mixed:
             sets = 3
-            reps = RepRange(lowerBound: 8, upperBound: 12)
+            reps = 10
             rest = 70
             work = 45
         }
@@ -190,11 +190,13 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
         switch profile.experienceLevel {
         case .beginner:
             sets = max(2, sets - 1)
+            reps = max(5, reps - 1)
             rest += 15
         case .intermediate:
             break
         case .advanced:
             sets += 1
+            reps += 1
             rest = max(45, rest - 10)
         }
 
@@ -202,7 +204,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
             rest = max(30, rest - 10)
         }
 
-        return (sets, reps, rest, work)
+        return (sets, exactReps(reps), rest, work)
     }
 
     private func startingWeight(for template: ExerciseTemplate, profile: UserProfile) -> Double {
@@ -247,7 +249,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                 tips: ["Keep this easy and smooth.", "Use the warm-up to scan for restrictions."],
                 safetyNotes: ["Skip any movement that reproduces pain."],
                 sets: 1,
-                targetReps: RepRange(lowerBound: 5, upperBound: 6),
+                targetReps: exactReps(6),
                 restDuration: 10,
                 workDuration: 35,
                 equipment: [.bodyweight],
@@ -266,7 +268,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                     tips: ["Move through a comfortable range.", "Let the upper back wake up before loading."],
                     safetyNotes: ["Avoid aggressive overhead range if shoulders feel pinchy."],
                     sets: 1,
-                    targetReps: RepRange(lowerBound: 8, upperBound: 10),
+                    targetReps: exactReps(10),
                     restDuration: 15,
                     workDuration: 45,
                     equipment: [.bodyweight, .resistanceBands],
@@ -286,7 +288,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                     tips: ["Keep feet rooted.", "Use this to find your working stance."],
                     safetyNotes: ["Shorten the squat if knees or hips feel irritated."],
                     sets: 1,
-                    targetReps: RepRange(lowerBound: 6, upperBound: 8),
+                    targetReps: exactReps(8),
                     restDuration: 15,
                     workDuration: 45,
                     equipment: [.bodyweight],
@@ -313,7 +315,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                     tips: ["Keep the shoulder low.", "Ease in instead of forcing range."],
                     safetyNotes: ["Back off if the stretch turns sharp or nervy."],
                     sets: 1,
-                    targetReps: RepRange(lowerBound: 1, upperBound: 1),
+                    targetReps: exactReps(1),
                     restDuration: 10,
                     workDuration: 45,
                     equipment: [.bodyweight, .fullGym],
@@ -333,7 +335,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                     tips: ["Keep the neck relaxed.", "Think long, not intense."],
                     safetyNotes: ["Avoid hanging on the shoulders if they feel unstable."],
                     sets: 1,
-                    targetReps: RepRange(lowerBound: 1, upperBound: 1),
+                    targetReps: exactReps(1),
                     restDuration: 10,
                     workDuration: 45,
                     equipment: [.bodyweight, .fullGym],
@@ -353,7 +355,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                     tips: ["Keep the pelvis tucked slightly.", "Use support for balance."],
                     safetyNotes: ["Pad the knee and avoid forcing end range."],
                     sets: 1,
-                    targetReps: RepRange(lowerBound: 1, upperBound: 1),
+                    targetReps: exactReps(1),
                     restDuration: 0,
                     workDuration: 55,
                     equipment: [.bodyweight],
@@ -373,7 +375,7 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                     tips: ["End calmer than you started.", "Stay away from painful range."],
                     safetyNotes: ["Move slowly if you feel lightheaded."],
                     sets: 1,
-                    targetReps: RepRange(lowerBound: 3, upperBound: 4),
+                    targetReps: exactReps(4),
                     restDuration: 0,
                     workDuration: 45,
                     equipment: [.bodyweight],
@@ -384,5 +386,9 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
         }
 
         return Array(stretches.prefix(profile.durationPreference == .thirty ? 2 : 3))
+    }
+
+    private func exactReps(_ reps: Int) -> RepRange {
+        RepRange(lowerBound: reps, upperBound: reps)
     }
 }
