@@ -164,6 +164,30 @@ final class AppViewModel: ObservableObject {
         persist()
     }
 
+    func moveWorkout(_ workout: WorkoutDay, toWeekdayIndex targetWeekdayIndex: Int) {
+        guard (1...7).contains(targetWeekdayIndex),
+              var plan = snapshot.activePlan,
+              let weekIndex = plan.weeks.firstIndex(where: { $0.weekNumber == workout.weekNumber }),
+              let sourceIndex = plan.weeks[weekIndex].days.firstIndex(where: { $0.id == workout.id }) else {
+            return
+        }
+
+        let sourceWeekdayIndex = plan.weeks[weekIndex].days[sourceIndex].dayIndex
+        guard sourceWeekdayIndex != targetWeekdayIndex else { return }
+
+        if let targetIndex = plan.weeks[weekIndex].days.firstIndex(where: { $0.dayIndex == targetWeekdayIndex }) {
+            plan.weeks[weekIndex].days[sourceIndex].dayIndex = targetWeekdayIndex
+            plan.weeks[weekIndex].days[targetIndex].dayIndex = sourceWeekdayIndex
+        } else {
+            plan.weeks[weekIndex].days[sourceIndex].dayIndex = targetWeekdayIndex
+        }
+
+        plan.weeks[weekIndex].days.sort { $0.dayIndex < $1.dayIndex }
+        snapshot.activePlan = plan
+        persist()
+        HapticEngine.notify(.success)
+    }
+
     func addExtraExercise(_ exercise: Exercise, to day: WorkoutDay) {
         guard var plan = snapshot.activePlan else { return }
 

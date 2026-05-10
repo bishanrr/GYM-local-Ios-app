@@ -86,6 +86,7 @@ struct WorkoutPlanView: View {
     private func workoutDetail(for workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             SelectedWorkoutHeader(workout: workout, state: state)
+            moveWorkoutSection(for: workout, state: state)
 
             CoachSegmentedControl(items: ["Exercises", "Details", "Extras"], selection: $selectedTab)
 
@@ -153,6 +154,7 @@ struct WorkoutPlanView: View {
                 }
             }
 
+            moveWorkoutHereSection(for: state)
             cardioExtras(for: nil, state: state)
         }
     }
@@ -217,6 +219,63 @@ struct WorkoutPlanView: View {
         }
     }
 
+    private func moveWorkoutSection(for workout: WorkoutDay, state: WeekdayWorkoutState) -> some View {
+        PremiumCard {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(
+                    title: "Move Workout",
+                    subtitle: "Shift or swap this session within week \(state.weekNumber)."
+                )
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                    ForEach(states(inWeek: state.weekNumber)) { targetState in
+                        MoveDayButton(
+                            state: targetState,
+                            isCurrentDay: targetState.weekdayIndex == state.weekdayIndex,
+                            canMove: canMoveWorkout(from: state, to: targetState)
+                        ) {
+                            appModel.moveWorkout(workout, toWeekdayIndex: targetState.weekdayIndex)
+                            selectedDayID = targetState.id
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func moveWorkoutHereSection(for targetState: WeekdayWorkoutState) -> some View {
+        let movableWorkouts = states(inWeek: targetState.weekNumber)
+            .filter { sourceState in
+                sourceState.workout != nil && canMoveWorkout(from: sourceState, to: targetState)
+            }
+
+        guard !movableWorkouts.isEmpty else {
+            return AnyView(EmptyView())
+        }
+
+        return AnyView(
+            PremiumCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionHeader(
+                        title: "Move Here",
+                        subtitle: "Place a workout on \(weekdayName(for: targetState.date))."
+                    )
+
+                    VStack(spacing: 10) {
+                        ForEach(movableWorkouts) { sourceState in
+                            MoveWorkoutHereRow(sourceState: sourceState) {
+                                if let workout = sourceState.workout {
+                                    appModel.moveWorkout(workout, toWeekdayIndex: targetState.weekdayIndex)
+                                    selectedDayID = targetState.id
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
     private func cardioExtras(for workout: WorkoutDay?, state: WeekdayWorkoutState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(
@@ -240,6 +299,30 @@ struct WorkoutPlanView: View {
 
     private func canAddExtra(to state: WeekdayWorkoutState) -> Bool {
         Date() < state.deadline && state.status != .completed && state.status != .missed
+    }
+
+    private func states(inWeek weekNumber: Int) -> [WeekdayWorkoutState] {
+        appModel.trainingBlockDayStates
+            .filter { $0.weekNumber == weekNumber }
+            .sorted { $0.weekdayIndex < $1.weekdayIndex }
+    }
+
+    private func canMoveWorkout(from sourceState: WeekdayWorkoutState, to targetState: WeekdayWorkoutState) -> Bool {
+        guard sourceState.weekNumber == targetState.weekNumber,
+              sourceState.weekdayIndex != targetState.weekdayIndex,
+              sourceState.workout != nil else {
+            return false
+        }
+
+        if sourceState.status == .completed || sourceState.status == .missed {
+            return false
+        }
+
+        if targetState.status == .completed || targetState.status == .missed || targetState.status == .inProgress {
+            return false
+        }
+
+        return true
     }
 
     private func statusColor(for status: WeekdayWorkoutStatus) -> Color {
@@ -549,6 +632,137 @@ private struct ScheduleDayRow: View {
         case .rest:
             return CoachTheme.tertiaryText
         }
+    }
+}
+
+private struct MoveDayButton: View {
+    var state: WeekdayWorkoutState
+    var isCurrentDay: Bool
+    var canMove: Bool
+    var onMove: () -> Void
+
+    var body: some View {
+        Button(action: onMove) {
+            VStack(spacing: 6) {
+                Text(weekdayShort)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(CoachTheme.secondaryText)
+                Text(dayNumber)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                    .monospacedDigit()
+                Text(actionTitle)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(isCurrentDay ? CoachTheme.accentMint : statusColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 76)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isCurrentDay ? CoachTheme.accentMint.opacity(0.55) : statusColor.opacity(canMove ? 0.42 : 0.16), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canMove)
+        .opacity(isCurrentDay || canMove ? 1 : 0.44)
+    }
+
+    private var weekdayShort: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: state.date)
+    }
+
+    private var dayNumber: String {
+        "\(Calendar.current.component(.day, from: state.date))"
+    }
+
+    private var actionTitle: String {
+        if isCurrentDay {
+            return "Current"
+        }
+        return state.workout == nil ? "Move" : "Swap"
+    }
+
+    private var backgroundColor: Color {
+        if isCurrentDay {
+            return CoachTheme.accentMint.opacity(0.14)
+        }
+        return CoachTheme.surfaceStrong.opacity(canMove ? 0.72 : 0.36)
+    }
+
+    private var statusColor: Color {
+        switch state.status {
+        case .completed:
+            return CoachTheme.accentMint
+        case .inProgress:
+            return CoachTheme.accentPurple
+        case .missed, .incomplete:
+            return CoachTheme.accentCoral
+        case .upcoming:
+            return CoachTheme.accentGold
+        case .available:
+            return CoachTheme.accentBlue
+        case .rest:
+            return CoachTheme.secondaryText
+        }
+    }
+}
+
+private struct MoveWorkoutHereRow: View {
+    var sourceState: WeekdayWorkoutState
+    var onMove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.triangle.branch")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(CoachTheme.accentBlue)
+                .frame(width: 42, height: 42)
+                .background(CoachTheme.accentBlue.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(sourceState.workout?.title ?? "Workout")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(CoachTheme.primaryText)
+                    .lineLimit(1)
+                Text("From \(weekdayName)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(CoachTheme.secondaryText)
+            }
+
+            Spacer()
+
+            Button(action: onMove) {
+                Text("Move")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 58, height: 34)
+                    .background(CoachTheme.accentBlue)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(CoachTheme.surface.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(CoachTheme.stroke, lineWidth: 1)
+        )
+    }
+
+    private var weekdayName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: sourceState.date)
     }
 }
 
