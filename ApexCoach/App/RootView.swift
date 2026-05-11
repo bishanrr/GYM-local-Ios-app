@@ -137,27 +137,33 @@ private struct LaunchLoadingView: View {
 }
 
 private struct MainTabView: View {
+    @EnvironmentObject private var appModel: AppViewModel
+
     var body: some View {
-        TabView {
+        TabView(selection: $appModel.selectedTab) {
             HomeView()
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
+                .tag(AppTab.home)
 
             WorkoutPlanView()
                 .tabItem {
                     Label("Workouts", systemImage: "dumbbell")
                 }
+                .tag(AppTab.workouts)
 
             ProgressViewScreen()
                 .tabItem {
                     Label("Progress", systemImage: "chart.xyaxis.line")
                 }
+                .tag(AppTab.progress)
 
             ProfileView()
                 .tabItem {
                     Label("Profile", systemImage: "person.crop.circle")
                 }
+                .tag(AppTab.profile)
         }
         .tint(CoachTheme.accentMint)
     }

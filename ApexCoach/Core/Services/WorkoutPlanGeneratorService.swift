@@ -77,6 +77,15 @@ struct WorkoutPlanGeneratorService: WorkoutPlanGenerating {
                 ("Shoulders + Core", [.shoulders, .core]),
                 ("Athletic Full Body", [.fullBody, .core])
             ]
+        case .classicBroSplit:
+            base = [
+                ("Chest Day", [.chest]),
+                ("Back Day", [.back]),
+                ("Leg Day", [.quads, .hamstrings, .glutes, .calves]),
+                ("Shoulder Day", [.shoulders]),
+                ("Arm Day", [.biceps, .triceps]),
+                ("Core + Calves", [.core, .calves])
+            ]
         case .custom:
             base = targetedMuscles.map { ("Focused \($0.rawValue)", [$0]) }
         }

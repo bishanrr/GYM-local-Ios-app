@@ -62,6 +62,7 @@ enum WorkoutSplit: String, Codable, CaseIterable, Identifiable, Hashable {
     case pushPullLegs = "Push Pull Legs"
     case upperLower = "Upper Lower"
     case broSplit = "Bro Split"
+    case classicBroSplit = "Classic Bro Split"
     case custom = "Custom"
 
     var id: String { rawValue }

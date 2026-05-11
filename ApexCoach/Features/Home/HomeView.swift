@@ -249,9 +249,14 @@ struct HomeView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(CoachTheme.primaryText)
                 Spacer()
-                Text("View all")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(CoachTheme.secondaryText)
+                Button {
+                    appModel.selectedTab = .workouts
+                } label: {
+                    Text("View all")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(CoachTheme.secondaryText)
+                }
+                .buttonStyle(.plain)
             }
 
             WeekProgressStrip(

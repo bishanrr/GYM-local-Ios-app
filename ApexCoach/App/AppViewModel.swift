@@ -1,11 +1,19 @@
 import Foundation
 import SwiftUI
 
+enum AppTab: Hashable {
+    case home
+    case workouts
+    case progress
+    case profile
+}
+
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published private(set) var snapshot = AppSnapshot()
     @Published private(set) var isBootstrapping = true
     @Published var errorMessage: String?
+    @Published var selectedTab: AppTab = .home
 
     private let store: LocalWorkoutStore
     private let generator: WorkoutPlanGenerating
